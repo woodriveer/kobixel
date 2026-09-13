@@ -128,7 +128,7 @@ T7 ------→ T8
 
 ---
 
-### T3: Remove `tools/gemini_edit.py`
+### T3: Remove `tools/gemini_edit.py` ✅ Complete
 
 **What**: Delete the file — it requires a paid, billing-enabled Gemini API key with no free tier for image models, contradicting the project's no-API-key goal.
 **Where**: `tools/gemini_edit.py`
