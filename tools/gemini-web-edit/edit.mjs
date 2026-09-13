@@ -41,7 +41,8 @@ const prompt = arg("prompt");
 
 const PIXEL_ART_INSTRUCTIONS =
   "This is pixel art. Preserve the exact pixel grid: no anti-aliasing, " +
-  "no smoothing, no gradients, no blur. Use flat, solid colors only.";
+  "no smoothing, no gradients, no blur. " +
+  "Use canvas size as 256x256 pixels";
 
 const DEBUG_URL = "http://localhost:9222";
 const TOTAL_STEPS = 7;
