@@ -105,7 +105,7 @@ The Aseprite extension's dialog exposes nine input parameters, and `gemini-edit.
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----------------------------------------- | ------ | ------- |
 | CTX-01 | P1: edit.mjs reflects actual dimensions | Verify | ✅ Verified |
-| CTX-02 | P1: edit.mjs reflects actual dimensions | Verify | ⚠️ Needs Fix — see `validation.md` (discrimination sensor found the `width && height` boundary case untested) |
+| CTX-02 | P1: edit.mjs reflects actual dimensions | Verify | ✅ Verified — round-2 fix (exact-equality tests + exported constant) confirmed by re-running the exact mutation that survived round 1; it is now killed |
 | CTX-03 | P1: Remove paid/broken backends | Verify | ✅ Verified |
 | CTX-04 | P1: Remove paid/broken backends | Verify | ✅ Verified |
 | CTX-05 | P1: Remove paid/broken backends | Verify | ✅ Verified |
@@ -116,7 +116,7 @@ The Aseprite extension's dialog exposes nine input parameters, and `gemini-edit.
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 7 total, 6 Verified, 1 Needs Fix — see `.specs/features/prompt-context-audit-i18n/validation.md` for full evidence.
+**Coverage:** 7 total, 7 Verified, 0 Needs Fix — see `.specs/features/prompt-context-audit-i18n/validation.md` for full evidence (round 2, fix→re-verify iteration 1 of 3, PASS).
 
 ---
 
