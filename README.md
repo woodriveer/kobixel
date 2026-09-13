@@ -1,3 +1,5 @@
+*[Read in English](README.en-US.md)*
+
 # Gemini Edit — extensão para Aseprite
 
 Pega o sprite atual (ou a cel/seleção), exporta para PNG, chama um CLI local

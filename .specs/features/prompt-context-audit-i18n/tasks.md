@@ -260,7 +260,7 @@ T7 ------→ T8
 
 ---
 
-### T8: Add language-switcher link to README.md
+### T8: Add language-switcher link to README.md ✅ Complete
 
 **What**: Add a one-line language-switcher at the very top of `README.md` pointing to `README.en-US.md`.
 **Where**: `README.md`

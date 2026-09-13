@@ -110,7 +110,7 @@ The Aseprite extension's dialog exposes nine input parameters, and `gemini-edit.
 | CTX-04 | P1: Remove paid/broken backends | Design | Implementing |
 | CTX-05 | P1: Remove paid/broken backends | Design | Implementing |
 | DOC-01 | P2: English README parity | Design | Implementing |
-| DOC-02 | P2: English README parity | Design | Pending |
+| DOC-02 | P2: English README parity | Design | Implementing |
 
 **ID format:** `[CATEGORY]-[NUMBER]` — `CTX` = prompt-context fix + backend cleanup, `DOC` = documentation/i18n.
 
