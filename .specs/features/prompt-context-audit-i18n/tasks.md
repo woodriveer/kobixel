@@ -153,7 +153,7 @@ T7 ------→ T8
 
 ---
 
-### T4: Remove `tools/gemini-edit.ps1`
+### T4: Remove `tools/gemini-edit.ps1` ✅ Complete
 
 **What**: Delete the file — it requires a paid nanobanana API key and is already broken (Google discontinued the free `gemini` CLI login used as its foundation).
 **Where**: `tools/gemini-edit.ps1`

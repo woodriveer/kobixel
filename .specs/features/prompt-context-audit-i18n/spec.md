@@ -106,7 +106,7 @@ The Aseprite extension's dialog exposes nine input parameters, and `gemini-edit.
 | --------------- | ----------------------------------------- | ------ | ------- |
 | CTX-01 | P1: edit.mjs reflects actual dimensions | Design | Implementing |
 | CTX-02 | P1: edit.mjs reflects actual dimensions | Design | Implementing |
-| CTX-03 | P1: Remove paid/broken backends | Design | Pending |
+| CTX-03 | P1: Remove paid/broken backends | Design | Implementing |
 | CTX-04 | P1: Remove paid/broken backends | Design | Pending |
 | CTX-05 | P1: Remove paid/broken backends | Design | Pending |
 | DOC-01 | P2: English README parity | Design | Pending |
