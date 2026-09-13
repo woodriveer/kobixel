@@ -45,7 +45,7 @@ function optionalArg(name) {
   return process.argv[i + 1];
 }
 
-const BASE_PIXEL_ART_INSTRUCTIONS =
+export const BASE_PIXEL_ART_INSTRUCTIONS =
   "This is pixel art. Preserve the exact pixel grid: no anti-aliasing, " +
   "no smoothing, no gradients, no blur.";
 
