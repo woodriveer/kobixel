@@ -9,7 +9,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Spec**: `.specs/features/prompt-context-audit-i18n/spec.md`
-**Status**: In Progress (T1-T8 done; Verifier round 1 = FAIL, 2 fix tasks below)
+**Status**: Done (T1-T8 + FIX-1, FIX-2 complete; Verifier round 2 = PASS, see validation.md)
 
 ---
 
