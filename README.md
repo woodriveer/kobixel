@@ -20,10 +20,12 @@ Outras opções investigadas e por que não são a recomendação:
 | Opção | Resultado |
 |---|---|
 | `tools/gemini-web-edit/` (Playwright + Chrome já logado) | **Recomendado.** Sem chave de API, usa a assinatura Gemini Pro. ~20-40s por edição. Ver setup abaixo. |
-| `tools/gemini_edit.py` (API do Gemini direto) | Funciona e é rápido, mas exige API key no [AI Studio](https://aistudio.google.com/apikey) com **faturamento ativado** — não tem tier gratuito pra modelos de imagem, e não usa a assinatura Gemini Pro. |
-| `tools/gemini-edit.ps1` (`gemini` CLI + extensão nanobanana) | **Não funciona**: o login gratuito do `gemini` CLI foi descontinuado pela Google (`IneligibleTierError`, pede pra migrar pro Antigravity). Mesmo funcionando, a extensão nanobanana pede uma API key paga própria. |
+| `tools/gemini_edit.py` (API do Gemini direto) — **removido do repositório** | Exigia API key no [AI Studio](https://aistudio.google.com/apikey) com **faturamento ativado** — sem tier gratuito pra modelos de imagem, e não usava a assinatura Gemini Pro. Removido por isso; o código continua no histórico do git se precisar. |
+| `tools/gemini-edit.ps1` (`gemini` CLI + extensão nanobanana) — **removido do repositório** | Não funcionava: o login gratuito do `gemini` CLI foi descontinuado pela Google (`IneligibleTierError`), e a extensão nanobanana também exigia uma API key paga própria. Removido por isso; o código continua no histórico do git se precisar. |
 | Automação via agente Claude (`claude --chrome -p`) | Funciona, mas ~5min e ~US$1 de uso da assinatura Claude por edição — testado e descartado por custo/latência em favor do Playwright direto. |
 | `nanobanana` / `nano-banana-cli` (CLIs de terceiros) | Só o exemplo original do campo — precisa instalar e configurar, não é solução pronta. |
+
+**Nota**: `tools/gemini_edit.py` e `tools/gemini-edit.ps1` foram removidos deste repositório (ambos exigiam API key paga, e o segundo já estava quebrado). Se o seu campo "Comando externo" ainda aponta para um dos dois, troque pelo comando do `edit.mjs` — ver "O CLI" abaixo.
 
 **Limitação conhecida de todos os caminhos**: o Nano Banana não expõe canal
 alfa real por nenhuma via testada (download, clipboard, nem extraindo via
@@ -87,15 +89,13 @@ shell. O template é editável no diálogo e aceita estes placeholders:
 | `{prompt}` | seu prompt, já escapado |
 | `{width}` / `{height}` | dimensões do PNG enviado |
 
-Exemplos que funcionam:
+Exemplo que funciona (script pronto deste repo — ver setup abaixo):
 
 ```sh
-# script pronto deste repo, via navegador (recomendado — ver setup abaixo)
-node "C:\caminho\para\tools\gemini-web-edit\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}"
-
-# script pronto deste repo, via API direta (precisa de chave paga — ver abaixo)
-python "C:\caminho\para\tools\gemini_edit.py" --in "{input}" --out "{output}" --prompt "{prompt}"
+node "C:\caminho\para\tools\gemini-web-edit\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
 ```
+
+`--width`/`--height` são opcionais: o `edit.mjs` os usa para dizer ao Gemini o tamanho real do PNG enviado (em vez de um valor fixo) e continua funcionando normalmente se você omitir os dois.
 
 Antes de colar o comando no campo do plugin, **teste o script direto no
 terminal** com um PNG qualquer — assim os erros aparecem no terminal em vez
@@ -135,25 +135,6 @@ enquanto for usar o plugin; o script conecta nela, não abre a sua própria.
 
 Se o script não conseguir conectar (`Could not connect to Chrome's debug
 port`), é porque essa janela não está aberta ou foi fechada — abra de novo.
-
-### `tools/gemini_edit.py` (alternativa via API paga)
-
-Fala direto com a API do Gemini, sem navegador no meio — mais rápido, mas
-cobra por imagem.
-
-```sh
-pip install google-genai
-setx GEMINI_API_KEY "sua-chave-aqui"   # pegue em https://aistudio.google.com/apikey, com faturamento ativado
-```
-
-Modelo padrão: `gemini-2.5-flash-image` (será desligado em 2 de outubro de
-2026 — troque para `gemini-3.1-flash-image` via `--model` ou
-`GEMINI_IMAGE_MODEL` quando isso acontecer).
-
-### `tools/gemini-edit.ps1` (não recomendado — deixado para referência)
-
-Usa o `gemini` CLI + extensão nanobanana. Não funciona hoje porque a Google
-descontinuou o login gratuito do `gemini` CLI para contas individuais.
 
 ### PATH
 

@@ -178,7 +178,7 @@ T7 ------→ T8
 
 ---
 
-### T5: Update README.md — drop removed backends, fix width/height docs
+### T5: Update README.md — drop removed backends, fix width/height docs ✅ Complete
 
 **What**: Update `README.md`'s "Estado atual" comparison table (mark the two removed rows as "removed from the repo", keep the rejection rationale), delete the `### tools/gemini_edit.py` and `### tools/gemini-edit.ps1` subsections, add an explicit removal note pointing existing users at `edit.mjs`, and correct the `{width}`/`{height}` placeholder-table row to describe the post-T1/T2 behavior.
 **Where**: `README.md`
