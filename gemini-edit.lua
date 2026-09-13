@@ -469,7 +469,7 @@ local function run(data)
   -- Ordem final enviada ao Gemini: prompt do usuário -> instrução de
   -- fator de proximidade -> texto fixo de pixel art (esse último é
   -- colado pelos backends, ex. edit.mjs, logo depois do {prompt}).
-  local effectivePrompt = data.prompt .. " - " .. fidelityInstruction(data.fidelity)
+  local effectivePrompt = data.prompt .. fidelityInstruction(data.fidelity)
   local cmd = fillTemplate(data.command, {
     input  = inPath,
     output = outPath,

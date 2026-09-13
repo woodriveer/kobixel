@@ -38,7 +38,12 @@ $newVersion = "$majorNum.$minorNum.$patchNum"
 # rest of package.json's formatting (key order, spacing) doesn't get
 # reshuffled by a JSON round-trip.
 $newContent = $content -replace '"version":\s*"\d+\.\d+\.\d+"', "`"version`": `"$newVersion`""
-Set-Content -Path $pkgPath -Value $newContent -NoNewline -Encoding utf8
+# Set-Content -Encoding utf8 writes a BOM in Windows PowerShell 5.1, and
+# Aseprite's JSON parser chokes on it ("error parsing json file: expected
+# value, got (-17)" - -17 is the signed byte value of the BOM's first byte,
+# 0xEF). Write via .NET directly with a BOM-less UTF8Encoding instead.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $pkgPath), $newContent, $utf8NoBom)
 
 Remove-Item -Force -ErrorAction SilentlyContinue gemini-edit-*.aseprite-extension
 $zipPath = "gemini-edit-$newVersion.zip"
