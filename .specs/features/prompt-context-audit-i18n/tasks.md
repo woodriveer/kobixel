@@ -102,7 +102,7 @@ T7 ------→ T8
 
 ---
 
-### T2: Forward `{width}`/`{height}` through the default external command
+### T2: Forward `{width}`/`{height}` through the default external command ✅ Complete
 
 **What**: Update `DEFAULTS.command` in `gemini-edit.lua` to append `--width "{width}" --height "{height}"` to the shipped `edit.mjs` invocation, so the dimensions `run()` already computes actually reach the CLI.
 **Where**: `gemini-edit.lua`

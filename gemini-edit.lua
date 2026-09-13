@@ -10,7 +10,7 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'node "D:\\Developer\\repixel-ai\\tools\\gemini-web-edit\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}"',
+  command     = 'node "D:\\Developer\\repixel-ai\\tools\\gemini-web-edit\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
   source      = "sprite",     -- "sprite" (frame achatado) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 8,            -- fator de ampliação do que é ENVIADO
