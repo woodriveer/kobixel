@@ -1,0 +1,15 @@
+{
+  "name": "gemini-edit",
+  "displayName": "Gemini Edit",
+  "description": "Envia o sprite atual + um prompt para um CLI local de geração de imagem e traz o resultado de volta para dentro do Aseprite.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Tapajós"
+  },
+  "license": "MIT",
+  "contributes": {
+    "scripts": [
+      { "path": "./gemini-edit.lua" }
+    ]
+  }
+}
