@@ -233,7 +233,7 @@ T7 ------→ T8
 
 ---
 
-### T7: Create README.en-US.md
+### T7: Create README.en-US.md ✅ Complete
 
 **What**: Full English translation of the post-T5 `README.md`, with a language-switcher line at the top linking back to `README.md`.
 **Where**: `README.en-US.md`
