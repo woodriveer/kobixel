@@ -17,6 +17,7 @@ local DEFAULTS = {
   resample    = "average",    -- "average" | "point"
   snapPalette = true,
   alphaCut    = 128,
+  fidelity    = 70,           -- 0-100: fator de proximidade com o desenho original
 }
 
 local cfg = {}   -- config em memória (espelha plugin.preferences)
@@ -67,6 +68,32 @@ local function fillTemplate(tpl, map)
   return (tpl:gsub("{(%w+)}", function(key)
     return map[key] or ("{" .. key .. "}")
   end))
+end
+
+-- traduz o slider de fidelidade (0-100) numa instrução em texto pro
+-- modelo de imagem: não existe um parâmetro tipo "strength" na API/UI do
+-- Gemini pra controlar isso, então o único jeito é pedir por escrito.
+-- 100 = ficar o mais parecido possível com o desenho original (só aplica
+-- a mudança pedida); 0 = usar o desenho só como inspiração solta de
+-- cor/estilo e priorizar o que foi pedido no prompt.
+local function fidelityInstruction(fidelity)
+  if fidelity >= 90 then
+    return "Preserve the input image closely: keep the same pose, proportions, " ..
+      "composition, and silhouette. Only apply the requested change - do not " ..
+      "redesign or reinterpret the subject."
+  elseif fidelity >= 60 then
+    return "Stay reasonably close to the input image's composition and subject, " ..
+      "but adjust details freely as needed to match the request."
+  elseif fidelity >= 30 then
+    return "Use the input image as a loose visual reference (general shape and " ..
+      "color palette only) - feel free to reinterpret it significantly to match " ..
+      "the request."
+  else
+    return "Use the input image only as a rough color/style inspiration. " ..
+      "Prioritize the text request over the input image's composition: create " ..
+      "something new that matches the request, not a small variation of the " ..
+      "input."
+  end
 end
 
 -- grava um script wrapper e DISPARA EM SEGUNDO PLANO: aseprite roda tudo
@@ -439,10 +466,14 @@ local function run(data)
   end
 
   -- 3. monta e dispara o comando em segundo plano (não bloqueia a UI)
+  -- Ordem final enviada ao Gemini: prompt do usuário -> instrução de
+  -- fator de proximidade -> texto fixo de pixel art (esse último é
+  -- colado pelos backends, ex. edit.mjs, logo depois do {prompt}).
+  local effectivePrompt = data.prompt .. " - " .. fidelityInstruction(data.fidelity)
   local cmd = fillTemplate(data.command, {
     input  = inPath,
     output = outPath,
-    prompt = escapeForShell(data.prompt),
+    prompt = escapeForShell(effectivePrompt),
     width  = tostring(sent.width),
     height = tostring(sent.height),
   })
@@ -545,6 +576,10 @@ local function showDialog(plugin)
 
   dlg:entry{ id = "prompt", label = "Prompt:", text = saved.prompt, focus = true }
 
+  dlg:slider{ id = "fidelity", label = "Fator de proximidade:",
+              min = 0, max = 100, value = saved.fidelity }
+  dlg:label{ label = "", text = "100 = igual ao desenho, só aplica o pedido · 0 = usa o desenho só como inspiração solta" }
+
   dlg:combobox{
     id = "source", label = "Enviar:",
     option = saved.source == "cel" and "Camada atual" or "Sprite achatado",
@@ -585,6 +620,7 @@ local function showDialog(plugin)
 
   local data = {
     prompt      = d.prompt,
+    fidelity    = d.fidelity,
     command     = d.command,
     source      = (d.source == "Camada atual") and "cel" or "sprite",
     target      = (d.target == "Substituir cel atual") and "replace" or "new_layer",

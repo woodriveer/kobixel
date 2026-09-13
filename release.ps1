@@ -1,0 +1,51 @@
+<#
+.SYNOPSIS
+    Bumps the version in package.json and builds a new
+    gemini-edit-X.Y.Z.aseprite-extension, removing old builds.
+
+.USAGE
+    .\release.ps1                # bumps the patch version (1.4.2 -> 1.4.3)
+    .\release.ps1 -Bump minor    # 1.4.2 -> 1.5.0
+    .\release.ps1 -Bump major    # 1.4.2 -> 2.0.0
+#>
+param(
+    [ValidateSet("major", "minor", "patch")]
+    [string]$Bump = "patch"
+)
+
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
+
+$pkgPath = "package.json"
+$content = Get-Content $pkgPath -Raw -Encoding UTF8
+$match = [regex]::Match($content, '"version":\s*"(\d+)\.(\d+)\.(\d+)"')
+if (-not $match.Success) {
+    throw "Could not find a `"version`": `"X.Y.Z`" field in $pkgPath"
+}
+
+[int]$majorNum = $match.Groups[1].Value
+[int]$minorNum = $match.Groups[2].Value
+[int]$patchNum = $match.Groups[3].Value
+
+switch ($Bump) {
+    "major" { $majorNum++; $minorNum = 0; $patchNum = 0 }
+    "minor" { $minorNum++; $patchNum = 0 }
+    "patch" { $patchNum++ }
+}
+$newVersion = "$majorNum.$minorNum.$patchNum"
+
+# Regex replace in place instead of ConvertFrom-Json/ConvertTo-Json, so the
+# rest of package.json's formatting (key order, spacing) doesn't get
+# reshuffled by a JSON round-trip.
+$newContent = $content -replace '"version":\s*"\d+\.\d+\.\d+"', "`"version`": `"$newVersion`""
+Set-Content -Path $pkgPath -Value $newContent -NoNewline -Encoding utf8
+
+Remove-Item -Force -ErrorAction SilentlyContinue gemini-edit-*.aseprite-extension
+$zipPath = "gemini-edit-$newVersion.zip"
+Remove-Item -Force -ErrorAction SilentlyContinue $zipPath
+Compress-Archive -Path package.json, gemini-edit.lua -DestinationPath $zipPath -CompressionLevel Optimal
+$extPath = "gemini-edit-$newVersion.aseprite-extension"
+Rename-Item $zipPath $extPath -Force
+
+Write-Output "Built $extPath (version $newVersion)"
+Write-Output "Next: install it in Aseprite (Edit > Preferences > Extensions > Add Extension), remove the old version first, restart Aseprite."

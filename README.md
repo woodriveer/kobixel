@@ -33,26 +33,47 @@ mágica) quando precisar de transparência.
 
 ## Instalação
 
-1. Zipe `package.json` e `gemini-edit.lua` juntos, sem subpasta (o
-   `package.json` tem que ficar na **raiz** do zip):
+1. Gere o `.aseprite-extension` com o script de release:
    ```powershell
-   Compress-Archive -Path package.json, gemini-edit.lua -DestinationPath gemini-edit-X.Y.Z.zip -Force
-   Rename-Item gemini-edit-X.Y.Z.zip gemini-edit-X.Y.Z.aseprite-extension
+   .\release.ps1
    ```
-   (`X.Y.Z` = o valor de `version` no `package.json`.)
-2. No Aseprite: `Edit > Preferences > Extensions > Add Extension` → escolha o
-   `.aseprite-extension`.
+   Isso sobe o `version` no `package.json` (patch por padrão), apaga
+   builds antigos, e gera `gemini-edit-X.Y.Z.aseprite-extension` na raiz do
+   repo. Ver "Gerando uma nova release" abaixo pra mais opções.
+2. No Aseprite: `Edit > Preferences > Extensions` → **remova a versão
+   antiga** primeiro (evita cache) → `Add Extension` → escolha o
+   `.aseprite-extension` novo.
 3. Reinicie o Aseprite. O comando aparece em `Edit > Gemini Edit...`.
-
-**Atualizando uma versão já instalada**: o Aseprite identifica a extensão
-pelo campo `name` do `package.json`, não pelo nome do arquivo — ele só mostra
-como atualização se o `version` for maior que o instalado. Sempre suba o
-`version` antes de gerar um novo zip, senão reinstalar parece não fazer nada
-mesmo com o `.lua` alterado.
 
 Na primeira execução o Aseprite vai pedir permissão para o script escrever
 arquivos e executar comandos. Marque a opção de dar confiança total ao script,
 senão o diálogo aparece a cada chamada.
+
+## Gerando uma nova release
+
+Depois de editar `gemini-edit.lua`, rode:
+
+```powershell
+.\release.ps1                # sobe o patch: 1.4.3 -> 1.4.4 (padrão)
+.\release.ps1 -Bump minor    # 1.4.3 -> 1.5.0
+.\release.ps1 -Bump major    # 1.4.3 -> 2.0.0
+```
+
+Isso faz tudo: sobe o número de versão no `package.json`, apaga qualquer
+`.aseprite-extension` antigo na raiz, e gera o novo zip.
+
+**Por que sempre subir a versão**: o Aseprite identifica a extensão pelo
+campo `name` do `package.json`, não pelo nome do arquivo — ele só mostra
+como atualização se o `version` for maior que o instalado. Reinstalar sem
+subir a versão parece não fazer nada, mesmo com o `.lua` alterado de
+verdade (é exatamente esse bug que o script evita).
+
+Se preferir fazer manualmente em vez de usar o script:
+```powershell
+# edite "version" em package.json à mão primeiro
+Compress-Archive -Path package.json, gemini-edit.lua -DestinationPath gemini-edit-X.Y.Z.zip -Force
+Rename-Item gemini-edit-X.Y.Z.zip gemini-edit-X.Y.Z.aseprite-extension
+```
 
 ## O CLI
 
@@ -141,6 +162,24 @@ pelo launcher gráfico ou pela Steam, o `PATH` provavelmente não tem `~/.local/
 nem o node do nvm. **Use caminho absoluto do binário** no template se der
 "command not found".
 
+## Fator de proximidade
+
+O slider "Fator de proximidade" (0-100) controla o quanto o resultado deve
+se parecer com o sprite original, versus priorizar o que foi pedido no
+prompt. Não existe um parâmetro tipo "strength"/"denoise" na API ou na UI do
+Gemini pra isso — o slider vira uma instrução em texto (em inglês, junto do
+prompt) que muda dependendo da faixa:
+
+| Faixa | Instrução |
+|---|---|
+| 90-100 | Preservar pose, proporções, composição e silhueta; só aplicar a mudança pedida. |
+| 60-89 | Ficar razoavelmente perto da composição original, mas ajustar detalhes livremente. |
+| 30-59 | Usar o desenho só como referência solta (forma/paleta geral); pode reinterpretar bastante. |
+| 0-29 | Usar o desenho só como inspiração de cor/estilo; priorizar o prompt sobre a composição original. |
+
+Isso é só orientação por texto pro modelo — ele pode não seguir à risca,
+principalmente perto dos extremos.
+
 ## Dicas de uso
 
 - **Ampliar antes de enviar**: modelos de imagem trabalham em ~1024px. Mandar um
@@ -157,8 +196,9 @@ nem o node do nvm. **Use caminho absoluto do binário** no template se der
 
 ## Progresso e execução
 
-O comando externo roda em segundo plano (`start /B` no Windows), não trava a
-UI do Aseprite. Enquanto roda, um diálogo mostra a última linha do log e o
+O comando externo roda em segundo plano (via `Start-Process` do PowerShell no
+Windows — nomes de arquivo únicos por execução, ver "Debug" abaixo), não
+trava a UI do Aseprite. Enquanto roda, um diálogo mostra a última linha do log e o
 tempo decorrido (com um botão "Cancelar" pra parar de esperar, sem matar o
 processo em si). `tools/gemini-web-edit/edit.mjs` imprime marcadores de
 etapa (`[3/6] Uploading input image...` etc.) que aparecem nesse diálogo —

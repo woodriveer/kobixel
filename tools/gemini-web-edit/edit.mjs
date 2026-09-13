@@ -41,8 +41,7 @@ const prompt = arg("prompt");
 
 const PIXEL_ART_INSTRUCTIONS =
   "This is pixel art. Preserve the exact pixel grid: no anti-aliasing, " +
-  "no smoothing, no gradients, no blur. Use flat, solid colors only. " +
-  "Keep the same image dimensions and canvas framing.";
+  "no smoothing, no gradients, no blur. Use flat, solid colors only.";
 
 const DEBUG_URL = "http://localhost:9222";
 const TOTAL_STEPS = 7;
@@ -136,7 +135,7 @@ try {
 
   step(5, "Sending prompt...");
   await composeBox.click();
-  await composeBox.type(`${prompt}\n\n${PIXEL_ART_INSTRUCTIONS}`);
+  await composeBox.type(`${prompt} ${PIXEL_ART_INSTRUCTIONS}`);
   await page.keyboard.press("Enter");
 
   step(6, "Waiting for Nano Banana to generate the image...");
