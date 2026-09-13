@@ -9,17 +9,58 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Spec**: `.specs/features/prompt-context-audit-i18n/spec.md`
-**Status**: Draft
+**Status**: In Progress (T1-T8 done; Verifier round 1 = FAIL, 2 fix tasks below)
+
+---
+
+## Fix Tasks (Verifier round 1 - see validation.md)
+
+### FIX-1: Strengthen edit.test.mjs to kill the surviving mutant ✅ Complete
+
+**What**: The Verifier's discrimination sensor flipped `width && height` to `width || height` in `buildPixelArtInstructions` and it survived - the old tests used `assert.doesNotMatch(result, /\d+x\d+/)`, which a malformed `"512xundefined"` output does NOT match, so the regex assertion was too loose to catch the boundary bug. Replaced with exact-equality assertions against the exported `BASE_PIXEL_ART_INSTRUCTIONS` constant, and added the two missing boundary cases (only `width`, only `height`).
+**Where**: `tools/gemini-web-edit/edit.mjs` (export the constant), `tools/gemini-web-edit/edit.test.mjs`
+**Requirement**: CTX-02
+**Tests**: unit
+**Gate**: quick
+
+**Done when**:
+
+- [x] `BASE_PIXEL_ART_INSTRUCTIONS` is exported from `edit.mjs`.
+- [x] `edit.test.mjs` asserts exact string equality (not regex) on all three "no full dims" branches (neither given, only width, only height).
+- [x] Gate passes: `node --test tools/gemini-web-edit/edit.test.mjs` - 4/4 tests pass.
+- [x] Re-verified the fix actually kills the reported mutant: applied `width && height` -> `width || height` in an isolated scratch (mutation applied, tested, then reverted - never left in the real tree mid-check), confirmed 2/4 tests now fail, reverted, confirmed 4/4 pass again and `git diff` shows only the intended `export` change.
+
+**Commit**: `test(edit.mjs): use exact-equality assertions to kill a surviving mutant`
+
+---
+
+### FIX-2: Correct the documented gate command ✅ Complete
+
+**What**: `node --test tools/gemini-web-edit` (directory form) fails with `MODULE_NOT_FOUND` on this project's Windows + Node 22.19.0 (Node tries to `require()` the path). Updated every place this repo documents the gate command to cite the test file directly.
+**Where**: `.specs/features/prompt-context-audit-i18n/tasks.md` (Test Coverage Matrix, Gate Check Commands, T1's Done-when), `CLAUDE.md` (two mentions)
+**Requirement**: tooling/docs accuracy (not spec-numbered - a Verifier-found doc defect, not a new product requirement)
+**Tests**: none
+**Gate**: build
+
+**Done when**:
+
+- [x] All run-command mentions read `node --test tools/gemini-web-edit/edit.test.mjs`.
+- [x] `grep -rn "node --test tools/gemini-web-edit\`"` (bare directory form immediately closed by a backtick) returns no matches - remaining hits are only explanatory notes about the failure, not instructions to run the broken form.
+- [x] Gate check passes: `node --test tools/gemini-web-edit/edit.test.mjs` - 4/4 tests pass.
+
+**Commit**: `docs(gemini-edit): fix node --test command (directory form fails on windows)`
 
 ---
 
 ## Test Coverage Matrix
 
 > Generated from codebase sampling (no existing test files anywhere in the repo, no test-runner config, no CI). No project quality/testing guideline files found (no `AGENTS.md`, `CONTRIBUTING.md`, no CI workflows, no linter config). User confirmed approach: extract `edit.mjs`'s prompt-building logic into a pure function and cover it with Node's built-in test runner (`node --test`) — no new dependency added, consistent with the project's existing no-framework convention. Everything else (Lua, file removal, docs) has no runtime to test against and is verified by manual read/grep, matching the project's documented convention ("no automated test suite... verification stays manual").
+>
+> **Run command correction (post-Verifier fix)**: `node --test tools/gemini-web-edit` (directory form) fails on this project's Windows + Node 22.19.0 with `MODULE_NOT_FOUND` — Node tries to `require()` the path instead of scanning it for test files. Always cite the test file directly: `node --test tools/gemini-web-edit/edit.test.mjs`.
 
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 | ---------- | ------------------- | --------------------- | ----------------- | ------------ |
-| `edit.mjs` prompt-building function (pure, extracted) | unit | 1:1 to CTX-02: with both dims present → contains the real `WxH`; with either dim missing → no digit-based size clause at all | `tools/gemini-web-edit/*.test.mjs` | `node --test tools/gemini-web-edit` |
+| `edit.mjs` prompt-building function (pure, extracted) | unit | 1:1 to CTX-02: with both dims present → contains the real `WxH`; with either dim missing → no digit-based size clause at all | `tools/gemini-web-edit/*.test.mjs` | `node --test tools/gemini-web-edit/edit.test.mjs` |
 | `gemini-edit.lua` (`DEFAULTS.command` template) | none | Build gate only — no Lua interpreter available outside Aseprite itself | `gemini-edit.lua` | manual read/trace |
 | File removal (`gemini_edit.py`, `gemini-edit.ps1`) | none | Build gate only — existence check | `tools/` | `ls tools/gemini_edit.py tools/gemini-edit.ps1` (expect "No such file or directory") |
 | Documentation (`README.md`, `README.en-US.md`, `CLAUDE.md`) | none | Build gate only — grep/read verification, section-header parity for the two READMEs | `*.md` | `grep -rn` + manual header diff |
@@ -30,7 +71,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 | Gate Level | When to Use | Command |
 | ---------- | ----------- | ------- |
-| Quick | After T1 (unit test on the extracted prompt-building function) | `node --test tools/gemini-web-edit` |
+| Quick | After T1 (unit test on the extracted prompt-building function) | `node --test tools/gemini-web-edit/edit.test.mjs` |
 | Build | After every Lua/removal/doc task (T2-T8) | Task-specific manual check listed in that task's `Done when` (grep for stale references / `ls` for absence / header diff) |
 
 ---
@@ -92,7 +133,7 @@ T7 ------→ T8
 - [ ] `buildPixelArtInstructions({ width, height })` is a standalone exported function: when both `width` and `height` are provided, its return value contains the literal substring `` `${width}x${height}` `` (e.g. `"512x512"`); when either is missing, the returned string contains no digit-based canvas-size clause at all.
 - [ ] The static `PIXEL_ART_INSTRUCTIONS` hardcoded `"256x256"` string is removed; the prompt sent to Gemini (`` `${prompt} ${PIXEL_ART_INSTRUCTIONS}` ``) is updated to use `buildPixelArtInstructions(...)`'s output instead.
 - [ ] A co-located `tools/gemini-web-edit/edit.test.mjs` (or equivalent) uses `node:test` + `node:assert` to cover both branches (dims present / dims absent) of `buildPixelArtInstructions`.
-- [ ] Gate check passes: `node --test tools/gemini-web-edit`
+- [ ] Gate check passes: `node --test tools/gemini-web-edit/edit.test.mjs`
 - [ ] Test count: 2 tests pass (one per branch; no silent deletions)
 
 **Tests**: unit

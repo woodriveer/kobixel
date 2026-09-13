@@ -104,19 +104,19 @@ The Aseprite extension's dialog exposes nine input parameters, and `gemini-edit.
 
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----------------------------------------- | ------ | ------- |
-| CTX-01 | P1: edit.mjs reflects actual dimensions | Design | Implementing |
-| CTX-02 | P1: edit.mjs reflects actual dimensions | Design | Implementing |
-| CTX-03 | P1: Remove paid/broken backends | Design | Implementing |
-| CTX-04 | P1: Remove paid/broken backends | Design | Implementing |
-| CTX-05 | P1: Remove paid/broken backends | Design | Implementing |
-| DOC-01 | P2: English README parity | Design | Implementing |
-| DOC-02 | P2: English README parity | Design | Implementing |
+| CTX-01 | P1: edit.mjs reflects actual dimensions | Verify | ✅ Verified |
+| CTX-02 | P1: edit.mjs reflects actual dimensions | Verify | ⚠️ Needs Fix — see `validation.md` (discrimination sensor found the `width && height` boundary case untested) |
+| CTX-03 | P1: Remove paid/broken backends | Verify | ✅ Verified |
+| CTX-04 | P1: Remove paid/broken backends | Verify | ✅ Verified |
+| CTX-05 | P1: Remove paid/broken backends | Verify | ✅ Verified |
+| DOC-01 | P2: English README parity | Verify | ✅ Verified |
+| DOC-02 | P2: English README parity | Verify | ✅ Verified |
 
 **ID format:** `[CATEGORY]-[NUMBER]` — `CTX` = prompt-context fix + backend cleanup, `DOC` = documentation/i18n.
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 7 total, 0 mapped to tasks yet, 7 unmapped ⚠️ (Tasks phase maps these next)
+**Coverage:** 7 total, 6 Verified, 1 Needs Fix — see `.specs/features/prompt-context-audit-i18n/validation.md` for full evidence.
 
 ---
 
