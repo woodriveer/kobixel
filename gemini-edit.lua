@@ -10,7 +10,7 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'nanobanana "{prompt}" -e "{input}" -o "{output}"',
+  command     = 'node "D:\\Developer\\repixel-ai\\tools\\gemini-web-edit\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}"',
   source      = "sprite",     -- "sprite" (frame achatado) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 8,            -- fator de ampliação do que é ENVIADO
@@ -69,10 +69,23 @@ local function fillTemplate(tpl, map)
   end))
 end
 
--- grava um script wrapper e executa: evita inferno de aspas aninhadas
-local function runCommand(cmd, logPath)
+-- grava um script wrapper e DISPARA EM SEGUNDO PLANO: aseprite roda tudo
+-- numa thread só, então um os.execute comum trava a UI inteira pelos
+-- 20-90s+ que o comando externo leva. Start-Process do PowerShell devolve
+-- o controle na hora; o wrapper também grava o código de saída num arquivo
+-- "done" à parte, pra dar pra saber que o processo terminou sem precisar
+-- esperar o timeout inteiro em caso de erro.
+--
+-- O nome do wrapper é único por execução (com "stamp"): como isso roda em
+-- segundo plano, nada impede o usuário de clicar em "Gerar" de novo antes
+-- da primeira geração terminar (60-90s+) — e o Windows lê o .bat linha a
+-- linha por posição no arquivo, então se duas execuções reaproveitassem o
+-- mesmo nome de arquivo, a segunda sobrescreveria o .bat enquanto a
+-- primeira ainda está sendo interpretada, corrompendo a execução (pula
+-- linhas, silenciosamente nunca chega a rodar o comando externo).
+local function runCommandAsync(cmd, logPath, donePath, stamp)
   local dir = workDir()
-  local runner = app.fs.joinPath(dir, isWindows() and "gemini-run.bat" or "gemini-run.sh")
+  local runner = app.fs.joinPath(dir, "gemini-run-" .. stamp .. (isWindows() and ".bat" or ".sh"))
 
   local f = io.open(runner, "w")
   if not f then
@@ -80,20 +93,45 @@ local function runCommand(cmd, logPath)
   end
   if isWindows() then
     f:write("@echo off\r\n")
+    -- sem isso o console fica na code page do sistema (ex. cp1252) e
+    -- qualquer acento na saida do CLI vira byte invalido, truncando o
+    -- texto exibido no app.alert.
+    f:write("chcp 65001 >nul\r\n")
     f:write(cmd .. ' > "' .. logPath .. '" 2>&1\r\n')
+    f:write('echo %ERRORLEVEL% > "' .. donePath .. '"\r\n')
   else
     f:write("#!/bin/sh\n")
     f:write(cmd .. ' > "' .. logPath .. '" 2>&1\n')
+    f:write('echo $? > "' .. donePath .. '"\n')
   end
   f:close()
 
-  local rc
+  local ok
   if isWindows() then
-    rc = os.execute('cmd /S /C ""' .. runner .. '""')
+    -- NÃO usar "start /B" aqui: ele reaproveita o console do processo que
+    -- chamou, e o cmd.exe efêmero que o os.execute cria (o Aseprite é uma
+    -- GUI sem console próprio) morre quase na hora — o que pode derrubar
+    -- junto o processo filho antes dele rodar de verdade. É intermitente:
+    -- às vezes funciona, às vezes o CLI nunca chega a executar. Start-Process
+    -- do PowerShell cria um processo de verdade desacoplado desse console.
+    ok = os.execute(
+      'powershell -NoProfile -WindowStyle Hidden -Command ' ..
+      '"Start-Process -FilePath \'' .. runner .. '\' -WindowStyle Hidden"')
   else
-    rc = os.execute('sh "' .. runner .. '"')
+    ok = os.execute('sh "' .. runner .. '" &')
   end
-  return rc, nil
+  return ok, nil
+end
+
+-- última linha não-vazia de um texto (pra mostrar só o passo mais recente
+-- do log no diálogo de progresso).
+local function lastLine(s)
+  if not s or s == "" then return nil end
+  local last = nil
+  for line in s:gmatch("[^\r\n]+") do
+    last = line
+  end
+  return last
 end
 
 ----------------------------------------------------------------------
@@ -291,6 +329,50 @@ end
 -- pipeline principal
 ----------------------------------------------------------------------
 
+local MAX_WAIT_SECONDS = 180
+local POLL_INTERVAL = 0.5
+local runCounter = 0   -- garante stamp único mesmo se disparado no mesmo segundo
+local activeRun = false -- trava simples: só uma geração por vez nesta sessão
+
+-- traz o PNG gerado de volta pro sprite: reamostra, converte pro modo de
+-- cor do sprite, e insere numa transaction (Ctrl+Z desfaz de uma vez).
+--
+-- frameNumber/targetLayer vêm capturados de QUANDO O USUÁRIO CLICOU EM
+-- "Gerar", não lidos de app.frame/app.layer aqui: a geração roda em segundo
+-- plano por 30-90s+, e se o usuário trocar de aba/frame nesse meio tempo,
+-- app.frame/app.layer nesse momento já apontam pra outra coisa — o
+-- resultado entraria no lugar errado, sem erro nenhum pra avisar.
+local function finalizeResult(data, sprite, rect, outPath, frameNumber, targetLayer)
+  local result = loadPNG(outPath)
+  if not result then
+    return app.alert("Não consegui ler o PNG gerado:\n" .. outPath)
+  end
+
+  local shrunk = resampleTo(result, rect.width, rect.height, data.resample)
+  local final = toSpriteColorMode(shrunk, sprite, data.snapPalette, data.alphaCut)
+
+  app.transaction("Gemini Edit", function()
+    if data.target == "new_layer" then
+      local layer = sprite:newLayer()
+      layer.name = "Gemini: " .. data.prompt:sub(1, 24)
+      sprite:newCel(layer, frameNumber, final, Point(rect.x, rect.y))
+    else
+      if not targetLayer or not targetLayer.isImage then
+        return app.alert("A camada atual não aceita pixels. Use 'Nova camada'.")
+      end
+      local cel = targetLayer:cel(frameNumber)
+      if cel then
+        cel.image = final
+        cel.position = Point(rect.x, rect.y)
+      else
+        sprite:newCel(targetLayer, frameNumber, final, Point(rect.x, rect.y))
+      end
+    end
+  end)
+
+  app.refresh()
+end
+
 local function run(data)
   local sprite = app.sprite
   if not sprite then
@@ -299,6 +381,16 @@ local function run(data)
   if data.prompt == "" then
     return app.alert("Escreva um prompt.")
   end
+  if activeRun then
+    return app.alert("Já tem uma geração do Gemini Edit rodando. Espere terminar antes de pedir outra.")
+  end
+
+  -- Captura frame/camada AGORA: a geração roda em segundo plano por
+  -- 30-90s+, e se o usuário trocar de aba/frame nesse meio tempo,
+  -- app.frame/app.layer no momento em que terminar já apontam pra outra
+  -- coisa. Ver o comentário em finalizeResult.
+  local frameNumber = app.frame
+  local targetLayer = app.layer
 
   -- 1. área de trabalho: seleção, se houver; senão o sprite/cel inteiro
   local rect
@@ -312,7 +404,7 @@ local function run(data)
     rect = Rectangle(cel.position.x, cel.position.y, cel.image.width, cel.image.height)
   else
     baseImage = Image(sprite.spec)
-    baseImage:drawSprite(sprite, app.frame)
+    baseImage:drawSprite(sprite, frameNumber)
     rect = sprite.bounds
   end
 
@@ -335,16 +427,18 @@ local function run(data)
   local sent = upscaleNearest(rgba, data.upscale)
 
   local dir = workDir()
-  local stamp = tostring(os.time())
-  local inPath  = app.fs.joinPath(dir, "in-" .. stamp .. ".png")
-  local outPath = app.fs.joinPath(dir, "out-" .. stamp .. ".png")
-  local logPath = app.fs.joinPath(dir, "gemini.log")
+  runCounter = runCounter + 1
+  local stamp = tostring(os.time()) .. "-" .. tostring(runCounter)
+  local inPath   = app.fs.joinPath(dir, "in-" .. stamp .. ".png")
+  local outPath  = app.fs.joinPath(dir, "out-" .. stamp .. ".png")
+  local logPath  = app.fs.joinPath(dir, "gemini-" .. stamp .. ".log")
+  local donePath = app.fs.joinPath(dir, "done-" .. stamp .. ".txt")
 
   if not savePNG(sent, inPath) then
     return app.alert("Falha ao salvar o PNG de entrada em:\n" .. inPath)
   end
 
-  -- 3. monta e executa o comando
+  -- 3. monta e dispara o comando em segundo plano (não bloqueia a UI)
   local cmd = fillTemplate(data.command, {
     input  = inPath,
     output = outPath,
@@ -353,12 +447,29 @@ local function run(data)
     height = tostring(sent.height),
   })
 
-  local ok, err = runCommand(cmd, logPath)
+  local ok, err = runCommandAsync(cmd, logPath, donePath, stamp)
   if err then return app.alert(err) end
+  if not ok then
+    return app.alert("Não consegui iniciar o comando externo.\n\nComando:\n" .. cmd)
+  end
 
-  if not app.fs.isFile(outPath) then
+  -- 4. diálogo de progresso: um Timer confere periodicamente se o arquivo
+  -- de saída (ou o sentinel de "terminou") já apareceu, e vai atualizando
+  -- o texto com a última linha do log — sem travar a UI do Aseprite.
+  local progress = Dialog{ title = "Gemini Edit" }
+  local elapsed = 0
+  local timer
+
+  local function stopAndClose()
+    activeRun = false
+    if timer then timer:stop() end
+    progress:close()
+  end
+
+  local function onFailure()
+    stopAndClose()
     local log = readFile(logPath, 1200) or "(sem log)"
-    return app.alert{
+    app.alert{
       title = "Gemini Edit",
       text = {
         "O CLI não gerou o arquivo de saída esperado:",
@@ -373,36 +484,50 @@ local function run(data)
     }
   end
 
-  -- 4. traz o resultado de volta
-  local result = loadPNG(outPath)
-  if not result then
-    return app.alert("Não consegui ler o PNG gerado:\n" .. outPath)
+  local function onSuccess()
+    stopAndClose()
+    -- pcall: se o sprite foi fechado ou virou inválido durante a espera
+    -- (30-90s+ em segundo plano), isso vira um alerta em vez de um erro
+    -- silencioso só no Developer Console.
+    local finalizeOk, finalizeErr = pcall(finalizeResult, data, sprite, rect, outPath, frameNumber, targetLayer)
+    if not finalizeOk then
+      app.alert("Erro ao inserir o resultado no sprite:\n" .. tostring(finalizeErr) ..
+        "\n\nO PNG gerado continua em:\n" .. outPath)
+    end
   end
 
-  local shrunk = resampleTo(result, rect.width, rect.height, data.resample)
-  local final = toSpriteColorMode(shrunk, sprite, data.snapPalette, data.alphaCut)
+  activeRun = true
 
-  app.transaction("Gemini Edit", function()
-    if data.target == "new_layer" then
-      local layer = sprite:newLayer()
-      layer.name = "Gemini: " .. data.prompt:sub(1, 24)
-      sprite:newCel(layer, app.frame, final, Point(rect.x, rect.y))
-    else
-      local layer = app.layer
-      if not layer or not layer.isImage then
-        return app.alert("A camada atual não aceita pixels. Use 'Nova camada'.")
+  progress:label{ id = "status", text = "Iniciando..." }
+  progress:separator{}
+  progress:button{ id = "cancel", text = "Cancelar", onclick = stopAndClose }
+
+  timer = Timer{
+    interval = POLL_INTERVAL,
+    ontick = function()
+      elapsed = elapsed + POLL_INTERVAL
+
+      if app.fs.isFile(outPath) then
+        return onSuccess()
       end
-      local cel = app.cel
-      if cel and cel.layer == layer then
-        cel.image = final
-        cel.position = Point(rect.x, rect.y)
-      else
-        sprite:newCel(layer, app.frame, final, Point(rect.x, rect.y))
+      if app.fs.isFile(donePath) then
+        -- o processo terminou (bem ou mal) sem gravar outPath: não faz
+        -- sentido continuar esperando o timeout inteiro.
+        return onFailure()
       end
+      if elapsed >= MAX_WAIT_SECONDS then
+        return onFailure()
+      end
+
+      local dots = string.rep(".", math.floor(elapsed / POLL_INTERVAL) % 4)
+      local last = lastLine(readFile(logPath, 400)) or "aguardando o CLI..."
+      progress:modify{ id = "status", text =
+        string.format("Gerando%s (%ds)\n%s", dots, math.floor(elapsed), last) }
     end
-  end)
+  }
+  timer:start()
 
-  app.refresh()
+  progress:show{ wait = false }
 end
 
 ----------------------------------------------------------------------
