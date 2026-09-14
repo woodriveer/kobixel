@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------
--- Gemini Edit - Aseprite extension
+-- Repixel AI - Aseprite extension
 --
 -- Exporta o sprite (ou a cel/seleção atual) para PNG, manda para um CLI
 -- local de geração de imagem (Gemini / nano-banana / o que você quiser)
@@ -10,7 +10,7 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'node "D:\\Developer\\repixel-ai\\tools\\gemini-web-edit\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
+  command     = 'node "D:\\Developer\\repixel-ai\\tools\\repixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
   source      = "sprite",     -- "sprite" (frame achatado) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 8,            -- fator de ampliação do que é ENVIADO
@@ -32,7 +32,7 @@ end
 
 local function workDir()
   local base = app.fs.tempPath or app.fs.userConfigPath or app.fs.currentPath or "."
-  local dir = app.fs.joinPath(base, "aseprite-gemini")
+  local dir = app.fs.joinPath(base, "aseprite-repixel-ai")
   if not app.fs.isDirectory(dir) then
     app.fs.makeAllDirectories(dir)
   end
@@ -112,7 +112,7 @@ end
 -- linhas, silenciosamente nunca chega a rodar o comando externo).
 local function runCommandAsync(cmd, logPath, donePath, stamp)
   local dir = workDir()
-  local runner = app.fs.joinPath(dir, "gemini-run-" .. stamp .. (isWindows() and ".bat" or ".sh"))
+  local runner = app.fs.joinPath(dir, "repixel-run-" .. stamp .. (isWindows() and ".bat" or ".sh"))
 
   local f = io.open(runner, "w")
   if not f then
@@ -378,10 +378,10 @@ local function finalizeResult(data, sprite, rect, outPath, frameNumber, targetLa
   local shrunk = resampleTo(result, rect.width, rect.height, data.resample)
   local final = toSpriteColorMode(shrunk, sprite, data.snapPalette, data.alphaCut)
 
-  app.transaction("Gemini Edit", function()
+  app.transaction("Repixel AI", function()
     if data.target == "new_layer" then
       local layer = sprite:newLayer()
-      layer.name = "Gemini: " .. data.prompt:sub(1, 24)
+      layer.name = "Repixel AI: " .. data.prompt:sub(1, 24)
       sprite:newCel(layer, frameNumber, final, Point(rect.x, rect.y))
     else
       if not targetLayer or not targetLayer.isImage then
@@ -409,7 +409,7 @@ local function run(data)
     return app.alert("Escreva um prompt.")
   end
   if activeRun then
-    return app.alert("Já tem uma geração do Gemini Edit rodando. Espere terminar antes de pedir outra.")
+    return app.alert("Já tem uma geração do Repixel AI rodando. Espere terminar antes de pedir outra.")
   end
 
   -- Captura frame/camada AGORA: a geração roda em segundo plano por
@@ -458,7 +458,7 @@ local function run(data)
   local stamp = tostring(os.time()) .. "-" .. tostring(runCounter)
   local inPath   = app.fs.joinPath(dir, "in-" .. stamp .. ".png")
   local outPath  = app.fs.joinPath(dir, "out-" .. stamp .. ".png")
-  local logPath  = app.fs.joinPath(dir, "gemini-" .. stamp .. ".log")
+  local logPath  = app.fs.joinPath(dir, "repixel-" .. stamp .. ".log")
   local donePath = app.fs.joinPath(dir, "done-" .. stamp .. ".txt")
 
   if not savePNG(sent, inPath) then
@@ -487,7 +487,7 @@ local function run(data)
   -- 4. diálogo de progresso: um Timer confere periodicamente se o arquivo
   -- de saída (ou o sentinel de "terminou") já apareceu, e vai atualizando
   -- o texto com a última linha do log — sem travar a UI do Aseprite.
-  local progress = Dialog{ title = "Gemini Edit" }
+  local progress = Dialog{ title = "Repixel AI" }
   local elapsed = 0
   local timer
 
@@ -501,7 +501,7 @@ local function run(data)
     stopAndClose()
     local log = readFile(logPath, 1200) or "(sem log)"
     app.alert{
-      title = "Gemini Edit",
+      title = "Repixel AI",
       text = {
         "O CLI não gerou o arquivo de saída esperado:",
         outPath,
@@ -572,7 +572,7 @@ local function showDialog(plugin)
     if saved[k] == nil then saved[k] = v end
   end
 
-  local dlg = Dialog("Gemini Edit")
+  local dlg = Dialog("Repixel AI")
 
   dlg:entry{ id = "prompt", label = "Prompt:", text = saved.prompt, focus = true }
 
@@ -648,8 +648,8 @@ function init(plugin)
   -- Aseprite. Id inválido = comando registrado (serve para atalho de teclado)
   -- mas invisível em todos os menus. "file_scripts" = File > Scripts.
   plugin:newCommand{
-    id = "GeminiEdit",
-    title = "Gemini Edit...",
+    id = "RepixelAI",
+    title = "Repixel AI...",
     group = "file_scripts",
     onclick = function() showDialog(plugin) end,
     onenabled = function() return app.sprite ~= nil end,

@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
     Bumps the version in package.json and builds a new
-    gemini-edit-X.Y.Z.aseprite-extension, removing old builds.
+    repixel-ai-X.Y.Z.aseprite-extension, removing old builds.
 
 .USAGE
-    .\release.ps1                # bumps the patch version (1.4.2 -> 1.4.3)
-    .\release.ps1 -Bump minor    # 1.4.2 -> 1.5.0
-    .\release.ps1 -Bump major    # 1.4.2 -> 2.0.0
+    .\release.ps1                # bumps the patch version (0.1.0 -> 0.1.1)
+    .\release.ps1 -Bump minor    # 0.1.0 -> 0.2.0
+    .\release.ps1 -Bump major    # 0.1.0 -> 1.0.0
 #>
 param(
     [ValidateSet("major", "minor", "patch")]
@@ -45,11 +45,11 @@ $newContent = $content -replace '"version":\s*"\d+\.\d+\.\d+"', "`"version`": `"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $pkgPath), $newContent, $utf8NoBom)
 
-Remove-Item -Force -ErrorAction SilentlyContinue gemini-edit-*.aseprite-extension
-$zipPath = "gemini-edit-$newVersion.zip"
+Remove-Item -Force -ErrorAction SilentlyContinue repixel-ai-*.aseprite-extension
+$zipPath = "repixel-ai-$newVersion.zip"
 Remove-Item -Force -ErrorAction SilentlyContinue $zipPath
-Compress-Archive -Path package.json, gemini-edit.lua -DestinationPath $zipPath -CompressionLevel Optimal
-$extPath = "gemini-edit-$newVersion.aseprite-extension"
+Compress-Archive -Path package.json, repixel-ai.lua -DestinationPath $zipPath -CompressionLevel Optimal
+$extPath = "repixel-ai-$newVersion.aseprite-extension"
 Rename-Item $zipPath $extPath -Force
 
 Write-Output "Built $extPath (version $newVersion)"

@@ -1,15 +1,15 @@
 {
-  "name": "gemini-edit",
-  "displayName": "Gemini Edit",
+  "name": "repixel-ai",
+  "displayName": "Repixel AI",
   "description": "Envia o sprite atual + um prompt para um CLI local de geração de imagem e traz o resultado de volta para dentro do Aseprite.",
-  "version": "1.4.9",
+  "version": "0.1.0",
   "author": {
     "name": "Tapajós"
   },
   "license": "MIT",
   "contributes": {
     "scripts": [
-      { "path": "./gemini-edit.lua" }
+      { "path": "./repixel-ai.lua" }
     ]
   }
 }

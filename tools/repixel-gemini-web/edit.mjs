@@ -50,7 +50,7 @@ export const BASE_PIXEL_ART_INSTRUCTIONS =
   "no smoothing, no gradients, no blur.";
 
 // Builds the canvas-size sentence from the REAL dimensions of the image
-// actually sent (data.upscale in gemini-edit.lua changes this per-sprite),
+// actually sent (data.upscale in repixel-ai.lua changes this per-sprite),
 // instead of a fixed claim that used to say "256x256" regardless of what
 // was really uploaded.
 export function buildPixelArtInstructions({ width, height } = {}) {

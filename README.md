@@ -1,6 +1,6 @@
 *[Read in English](README.en-US.md)*
 
-# Gemini Edit — extensão para Aseprite
+# Repixel AI — extensão para Aseprite
 
 Pega o sprite atual (ou a cel/seleção), exporta para PNG, chama um CLI local
 de geração de imagem com o seu prompt, e aplica o resultado de volta no sprite
@@ -8,20 +8,20 @@ de geração de imagem com o seu prompt, e aplica o resultado de volta no sprite
 `app.transaction`, então `Ctrl+Z` desfaz de uma vez.
 
 Só existe **uma** extensão de verdade neste projeto: o
-`gemini-edit-X.Y.Z.aseprite-extension`, instalado dentro do Aseprite. Nada
+`repixel-ai-X.Y.Z.aseprite-extension`, instalado dentro do Aseprite. Nada
 aqui depende de instalar nada no Chrome.
 
 ## Estado atual
 
 A extensão do Aseprite exporta o PNG, roda **um comando externo qualquer**
 configurado no campo "Comando externo" do diálogo, e traz o resultado de
-volta. `tools/gemini-web-edit/` (abaixo) é o comando padrão hoje e é o único
+volta. `tools/repixel-gemini-web/` (abaixo) é o comando padrão hoje e é o único
 caminho que usa a cota de imagem da assinatura Gemini Pro sem chave de API.
 Outras opções investigadas e por que não são a recomendação:
 
 | Opção | Resultado |
 |---|---|
-| `tools/gemini-web-edit/` (Playwright + Chrome já logado) | **Recomendado.** Sem chave de API, usa a assinatura Gemini Pro. ~20-40s por edição. Ver setup abaixo. |
+| `tools/repixel-gemini-web/` (Playwright + Chrome já logado) | **Recomendado.** Sem chave de API, usa a assinatura Gemini Pro. ~20-40s por edição. Ver setup abaixo. |
 | `tools/gemini_edit.py` (API do Gemini direto) — **removido do repositório** | Exigia API key no [AI Studio](https://aistudio.google.com/apikey) com **faturamento ativado** — sem tier gratuito pra modelos de imagem, e não usava a assinatura Gemini Pro. Removido por isso; o código continua no histórico do git se precisar. |
 | `tools/gemini-edit.ps1` (`gemini` CLI + extensão nanobanana) — **removido do repositório** | Não funcionava: o login gratuito do `gemini` CLI foi descontinuado pela Google (`IneligibleTierError`), e a extensão nanobanana também exigia uma API key paga própria. Removido por isso; o código continua no histórico do git se precisar. |
 | Automação via agente Claude (`claude --chrome -p`) | Funciona, mas ~5min e ~US$1 de uso da assinatura Claude por edição — testado e descartado por custo/latência em favor do Playwright direto. |
@@ -42,12 +42,12 @@ mágica) quando precisar de transparência.
    .\release.ps1
    ```
    Isso sobe o `version` no `package.json` (patch por padrão), apaga
-   builds antigos, e gera `gemini-edit-X.Y.Z.aseprite-extension` na raiz do
+   builds antigos, e gera `repixel-ai-X.Y.Z.aseprite-extension` na raiz do
    repo. Ver "Gerando uma nova release" abaixo pra mais opções.
 2. No Aseprite: `Edit > Preferences > Extensions` → **remova a versão
    antiga** primeiro (evita cache) → `Add Extension` → escolha o
    `.aseprite-extension` novo.
-3. Reinicie o Aseprite. O comando aparece em `Edit > Gemini Edit...`.
+3. Reinicie o Aseprite. O comando aparece em `Edit > Repixel AI...`.
 
 Na primeira execução o Aseprite vai pedir permissão para o script escrever
 arquivos e executar comandos. Marque a opção de dar confiança total ao script,
@@ -55,12 +55,12 @@ senão o diálogo aparece a cada chamada.
 
 ## Gerando uma nova release
 
-Depois de editar `gemini-edit.lua`, rode:
+Depois de editar `repixel-ai.lua`, rode:
 
 ```powershell
-.\release.ps1                # sobe o patch: 1.4.3 -> 1.4.4 (padrão)
-.\release.ps1 -Bump minor    # 1.4.3 -> 1.5.0
-.\release.ps1 -Bump major    # 1.4.3 -> 2.0.0
+.\release.ps1                # sobe o patch: 0.1.0 -> 0.1.1 (padrão)
+.\release.ps1 -Bump minor    # 0.1.0 -> 0.2.0
+.\release.ps1 -Bump major    # 0.1.0 -> 1.0.0
 ```
 
 Isso faz tudo: sobe o número de versão no `package.json`, apaga qualquer
@@ -75,8 +75,8 @@ verdade (é exatamente esse bug que o script evita).
 Se preferir fazer manualmente em vez de usar o script:
 ```powershell
 # edite "version" em package.json à mão primeiro
-Compress-Archive -Path package.json, gemini-edit.lua -DestinationPath gemini-edit-X.Y.Z.zip -Force
-Rename-Item gemini-edit-X.Y.Z.zip gemini-edit-X.Y.Z.aseprite-extension
+Compress-Archive -Path package.json, repixel-ai.lua -DestinationPath repixel-ai-X.Y.Z.zip -Force
+Rename-Item repixel-ai-X.Y.Z.zip repixel-ai-X.Y.Z.aseprite-extension
 ```
 
 ## O CLI
@@ -94,7 +94,7 @@ shell. O template é editável no diálogo e aceita estes placeholders:
 Exemplo que funciona (script pronto deste repo — ver setup abaixo):
 
 ```sh
-node "C:\caminho\para\tools\gemini-web-edit\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+node "C:\caminho\para\tools\repixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
 ```
 
 `--width`/`--height` são opcionais: o `edit.mjs` os usa para dizer ao Gemini o tamanho real do PNG enviado (em vez de um valor fixo) e continua funcionando normalmente se você omitir os dois.
@@ -103,7 +103,7 @@ Antes de colar o comando no campo do plugin, **teste o script direto no
 terminal** com um PNG qualquer — assim os erros aparecem no terminal em vez
 de num diálogo truncado do Aseprite.
 
-### `tools/gemini-web-edit/` (recomendado)
+### `tools/repixel-gemini-web/` (recomendado)
 
 Controla um Chrome que **você mesmo abre e loga**, via a porta de debug do
 Chrome (`--remote-debugging-port`) — não usa API key nenhuma, usa a cota de
@@ -119,7 +119,7 @@ logar: você loga manualmente num Chrome aberto por você, e o script só
 **Setup (uma vez):**
 
 ```sh
-cd tools/gemini-web-edit
+cd tools/repixel-gemini-web
 npm install
 ```
 
@@ -183,7 +183,7 @@ O comando externo roda em segundo plano (via `Start-Process` do PowerShell no
 Windows — nomes de arquivo únicos por execução, ver "Debug" abaixo), não
 trava a UI do Aseprite. Enquanto roda, um diálogo mostra a última linha do log e o
 tempo decorrido (com um botão "Cancelar" pra parar de esperar, sem matar o
-processo em si). `tools/gemini-web-edit/edit.mjs` imprime marcadores de
+processo em si). `tools/repixel-gemini-web/edit.mjs` imprime marcadores de
 etapa (`[3/6] Uploading input image...` etc.) que aparecem nesse diálogo —
 se usar outro comando externo, ele só vai mostrar o que o próprio comando
 imprimir no log.
@@ -194,7 +194,7 @@ diálogo de progresso fecha e mostra o log completo num alerta.
 
 ## Debug
 
-- Log de cada execução: `<temp>/aseprite-gemini/gemini-<stamp>.log` (um
+- Log de cada execução: `<temp>/aseprite-repixel-ai/repixel-<stamp>.log` (um
   arquivo por execução — nome fixo daria pra uma segunda geração corromper o
   `.bat` da primeira enquanto ela ainda roda em segundo plano).
 - PNGs de entrada/saída ficam na mesma pasta (`in-*.png`, `out-*.png`) — o
