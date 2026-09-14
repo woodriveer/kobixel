@@ -10,6 +10,8 @@ There is exactly one real extension artifact: `repixel-ai-X.Y.Z.aseprite-extensi
 
 The README (in Portuguese) is the source of truth for user-facing setup/usage instructions — read it for details beyond architecture (installation steps, prompt-crafting tips, known limitations). Don't duplicate its content into code comments.
 
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Add an entry under `## [Unreleased]` for any user-facing change (new option, behavior change, removed backend, etc.) in the same commit/PR that makes the change; move `Unreleased` into a new `## [X.Y.Z] - YYYY-MM-DD` section as part of the version bump described below.
+
 ## Commands
 
 Build/release a new extension version (from repo root, PowerShell):
