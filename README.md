@@ -1,211 +1,224 @@
-*[Read in English](README.en-US.md)*
+*[Leia em português](README.pt-BR.md)*
 
-# Repixel AI — extensão para Aseprite
+# Kobixel — Aseprite extension
 
-Pega o sprite atual (ou a cel/seleção), exporta para PNG, chama um CLI local
-de geração de imagem com o seu prompt, e aplica o resultado de volta no sprite
-— em uma nova camada ou substituindo a cel atual. Tudo dentro de uma
-`app.transaction`, então `Ctrl+Z` desfaz de uma vez.
+<img src="./kobixel.jpg" alt="Kobixel" width="600px"></img>
 
-Só existe **uma** extensão de verdade neste projeto: o
-`repixel-ai-X.Y.Z.aseprite-extension`, instalado dentro do Aseprite. Nada
-aqui depende de instalar nada no Chrome.
+**Kobixel** comes from *kobo* (工房), Japanese for "workshop"/"atelier", plus
+*pixel* — a workshop for your pixel art, built as an Aseprite extension.
 
-## Estado atual
+Takes the current sprite (or the cel/selection), exports it to PNG, calls a
+local image-generation CLI with your prompt, and applies the result back
+into the sprite — into a new layer or replacing the current cel. All inside
+a single `app.transaction`, so `Ctrl+Z` undoes everything at once.
 
-A extensão do Aseprite exporta o PNG, roda **um comando externo qualquer**
-configurado no campo "Comando externo" do diálogo, e traz o resultado de
-volta. `tools/repixel-gemini-web/` (abaixo) é o comando padrão hoje e é o único
-caminho que usa a cota de imagem da assinatura Gemini Pro sem chave de API.
-Outras opções investigadas e por que não são a recomendação:
+There is exactly **one** real extension in this project: the
+`kobixel-X.Y.Z.aseprite-extension`, installed inside Aseprite. Nothing
+here depends on installing anything in Chrome.
 
-| Opção | Resultado |
+## Current status
+
+The Aseprite extension exports the PNG, runs **any external command**
+configured in the dialog's "External command" field, and brings the result
+back. `tools/kobixel-gemini-web/` (below) is today's default
+command and the only path that uses the Gemini Pro subscription's image
+quota without an API key. Other options investigated, and why they aren't
+the recommendation:
+
+| Option | Result |
 |---|---|
-| `tools/repixel-gemini-web/` (Playwright + Chrome já logado) | **Recomendado.** Sem chave de API, usa a assinatura Gemini Pro. ~20-40s por edição. Ver setup abaixo. |
-| `tools/gemini_edit.py` (API do Gemini direto) — **removido do repositório** | Exigia API key no [AI Studio](https://aistudio.google.com/apikey) com **faturamento ativado** — sem tier gratuito pra modelos de imagem, e não usava a assinatura Gemini Pro. Removido por isso; o código continua no histórico do git se precisar. |
-| `tools/gemini-edit.ps1` (`gemini` CLI + extensão nanobanana) — **removido do repositório** | Não funcionava: o login gratuito do `gemini` CLI foi descontinuado pela Google (`IneligibleTierError`), e a extensão nanobanana também exigia uma API key paga própria. Removido por isso; o código continua no histórico do git se precisar. |
-| Automação via agente Claude (`claude --chrome -p`) | Funciona, mas ~5min e ~US$1 de uso da assinatura Claude por edição — testado e descartado por custo/latência em favor do Playwright direto. |
-| `nanobanana` / `nano-banana-cli` (CLIs de terceiros) | Só o exemplo original do campo — precisa instalar e configurar, não é solução pronta. |
+| `tools/kobixel-gemini-web/` (Playwright + an already-logged-in Chrome) | **Recommended.** No API key, uses the Gemini Pro subscription. ~20-40s per edit. See setup below. |
+| `tools/gemini_edit.py` (direct Gemini API) — **removed from the repo** | Required an API key from [AI Studio](https://aistudio.google.com/apikey) with **billing enabled** — no free tier for image models, and didn't use the Gemini Pro subscription. Removed for that reason; the code is still in git history if you need it. |
+| `tools/gemini-edit.ps1` (`gemini` CLI + nanobanana extension) — **removed from the repo** | Didn't work: Google discontinued the `gemini` CLI's free login (`IneligibleTierError`), and the nanobanana extension also required its own paid API key. Removed for that reason; the code is still in git history if you need it. |
+| Automation via a Claude agent (`claude --chrome -p`) | Works, but ~5min and ~US$1 of Claude subscription usage per edit — tested and discarded for cost/latency in favor of driving Playwright directly. |
+| `nanobanana` / `nano-banana-cli` (third-party CLIs) | Just the field's original example — needs installing and configuring, not a ready-made solution. |
 
-**Nota**: `tools/gemini_edit.py` e `tools/gemini-edit.ps1` foram removidos deste repositório (ambos exigiam API key paga, e o segundo já estava quebrado). Se o seu campo "Comando externo" ainda aponta para um dos dois, troque pelo comando do `edit.mjs` — ver "O CLI" abaixo.
+**Note**: `tools/gemini_edit.py` and `tools/gemini-edit.ps1` were removed
+from this repo (both required a paid API key, and the second was already
+broken). If your "External command" field still points at either one,
+replace it with the `edit.mjs` command — see "The CLI" below.
 
-**Limitação conhecida de todos os caminhos**: o Nano Banana não expõe canal
-alfa real por nenhuma via testada (download, clipboard, nem extraindo via
-canvas). Pedir "fundo transparente" no prompt só resulta em fundo
-branco/quadriculado opaco. Remova o fundo manualmente no Aseprite (varinha
-mágica) quando precisar de transparência.
+**Known limitation of every path**: Nano Banana doesn't expose a real alpha
+channel through any tested route (download, clipboard, or extracting via
+canvas). Asking for a "transparent background" in the prompt only produces
+an opaque white/checkered background. Remove the background manually in
+Aseprite (magic wand) when you need transparency.
 
-## Instalação
+## Installation
 
-1. Gere o `.aseprite-extension` com o script de release:
+1. Build the `.aseprite-extension` with the release script:
    ```powershell
    .\release.ps1
    ```
-   Isso sobe o `version` no `package.json` (patch por padrão), apaga
-   builds antigos, e gera `repixel-ai-X.Y.Z.aseprite-extension` na raiz do
-   repo. Ver "Gerando uma nova release" abaixo pra mais opções.
-2. No Aseprite: `Edit > Preferences > Extensions` → **remova a versão
-   antiga** primeiro (evita cache) → `Add Extension` → escolha o
-   `.aseprite-extension` novo.
-3. Reinicie o Aseprite. O comando aparece em `Edit > Repixel AI...`.
+   This bumps `version` in `package.json` (patch by default), deletes old
+   builds, and generates `kobixel-X.Y.Z.aseprite-extension` at the repo
+   root. See "Building a new release" below for more options.
+2. In Aseprite: `Edit > Preferences > Extensions` → **remove the old
+   version** first (avoids caching) → `Add Extension` → pick the new
+   `.aseprite-extension`.
+3. Restart Aseprite. The command appears under `Edit > Kobixel...`.
 
-Na primeira execução o Aseprite vai pedir permissão para o script escrever
-arquivos e executar comandos. Marque a opção de dar confiança total ao script,
-senão o diálogo aparece a cada chamada.
+On first run, Aseprite will ask permission for the script to write files
+and run commands. Check the option to fully trust the script, or the
+dialog will show up on every call.
 
-## Gerando uma nova release
+## Building a new release
 
-Depois de editar `repixel-ai.lua`, rode:
+After editing `kobixel.lua`, run:
 
 ```powershell
-.\release.ps1                # sobe o patch: 0.1.0 -> 0.1.1 (padrão)
+.\release.ps1                # bumps the patch: 0.1.0 -> 0.1.1 (default)
 .\release.ps1 -Bump minor    # 0.1.0 -> 0.2.0
 .\release.ps1 -Bump major    # 0.1.0 -> 1.0.0
 ```
 
-Isso faz tudo: sobe o número de versão no `package.json`, apaga qualquer
-`.aseprite-extension` antigo na raiz, e gera o novo zip.
+This does everything: bumps the version number in `package.json`, deletes
+any old `.aseprite-extension` at the root, and builds the new zip.
 
-**Por que sempre subir a versão**: o Aseprite identifica a extensão pelo
-campo `name` do `package.json`, não pelo nome do arquivo — ele só mostra
-como atualização se o `version` for maior que o instalado. Reinstalar sem
-subir a versão parece não fazer nada, mesmo com o `.lua` alterado de
-verdade (é exatamente esse bug que o script evita).
+**Why you must always bump the version**: Aseprite identifies the extension
+by the `name` field in `package.json`, not by the filename — it only shows
+an update if `version` is higher than what's installed. Reinstalling
+without bumping the version looks like it does nothing, even with a really
+changed `.lua` file (this is exactly the bug the script avoids).
 
-Se preferir fazer manualmente em vez de usar o script:
+If you'd rather do it by hand instead of using the script:
 ```powershell
-# edite "version" em package.json à mão primeiro
-Compress-Archive -Path package.json, repixel-ai.lua -DestinationPath repixel-ai-X.Y.Z.zip -Force
-Rename-Item repixel-ai-X.Y.Z.zip repixel-ai-X.Y.Z.aseprite-extension
+# edit "version" in package.json by hand first
+Compress-Archive -Path package.json, kobixel.lua -DestinationPath kobixel-X.Y.Z.zip -Force
+Rename-Item kobixel-X.Y.Z.zip kobixel-X.Y.Z.aseprite-extension
 ```
 
-## O CLI
+## The CLI
 
-O plugin não fala com a API do Google direto — ele executa um comando do
-shell. O template é editável no diálogo e aceita estes placeholders:
+The plugin doesn't talk to Google's API directly — it runs a shell command.
+The template is editable in the dialog and accepts these placeholders:
 
-| Placeholder | Vira |
+| Placeholder | Becomes |
 |---|---|
-| `{input}`  | caminho do PNG exportado do sprite |
-| `{output}` | caminho onde o CLI **deve** gravar o resultado |
-| `{prompt}` | seu prompt, já escapado |
-| `{width}` / `{height}` | dimensões do PNG enviado |
+| `{input}`  | path to the PNG exported from the sprite |
+| `{output}` | path where the CLI **must** write the result |
+| `{prompt}` | your prompt, already escaped |
+| `{width}` / `{height}` | dimensions of the sent PNG |
 
-Exemplo que funciona (script pronto deste repo — ver setup abaixo):
+Working example (the ready-made script from this repo — see setup below):
 
 ```sh
-node "C:\caminho\para\tools\repixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+node "C:\path\to\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
 ```
 
-`--width`/`--height` são opcionais: o `edit.mjs` os usa para dizer ao Gemini o tamanho real do PNG enviado (em vez de um valor fixo) e continua funcionando normalmente se você omitir os dois.
+`--width`/`--height` are optional: `edit.mjs` uses them to tell Gemini the
+real size of the PNG sent (instead of a fixed value), and it keeps working
+normally if you omit both.
 
-Antes de colar o comando no campo do plugin, **teste o script direto no
-terminal** com um PNG qualquer — assim os erros aparecem no terminal em vez
-de num diálogo truncado do Aseprite.
+Before pasting the command into the plugin's field, **test the script
+directly in a terminal** with any PNG — that way errors show up in the
+terminal instead of in a truncated Aseprite dialog.
 
-### `tools/repixel-gemini-web/` (recomendado)
+### `tools/kobixel-gemini-web/` (recommended)
 
-Controla um Chrome que **você mesmo abre e loga**, via a porta de debug do
-Chrome (`--remote-debugging-port`) — não usa API key nenhuma, usa a cota de
-imagem da sua assinatura Gemini Pro/Ultra pelo site.
+Drives a Chrome window **you open and log into yourself**, via Chrome's
+debug port (`--remote-debugging-port`) — uses no API key at all, just the
+image quota from your Gemini Pro/Ultra subscription through the website.
 
-Por quê não é mais simples que isso: o Google bloqueia login de conta Google
-feito por um navegador que a própria automação abriu ("Esse navegador ou app
-pode não ser seguro"), mesmo usando o Chrome de verdade — é uma defesa deles
-contra automação de login, não um bug. A saída é nunca deixar a automação
-logar: você loga manualmente num Chrome aberto por você, e o script só
-**conecta** nessa instância já autenticada.
+Why it isn't simpler than this: Google blocks Google-account sign-in from a
+browser that automation itself opened ("This browser or app may not be
+secure"), even with a real Chrome binary — it's a defense against
+automated logins, not a bug. The way around it is to never let the
+automation log in: you log in by hand in a Chrome window you opened, and
+the script only **connects** to that already-authenticated instance.
 
-**Setup (uma vez):**
+**Setup (once):**
 
 ```sh
-cd tools/repixel-gemini-web
+cd tools/kobixel-gemini-web
 npm install
 ```
 
-**Antes de cada sessão de uso** (ou deixe essa janela sempre aberta), abra o
-Chrome você mesmo com a porta de debug:
+**Before each usage session** (or just leave this window always open), open
+Chrome yourself with the debug port:
 
 ```powershell
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.repixel-ai\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
 ```
 
-Na primeira vez, faça login normalmente nessa janela. A sessão fica salva
-nesse perfil dedicado (separado do seu Chrome do dia a dia), então da
-próxima vez já abre logado — mas **a janela precisa continuar aberta**
-enquanto for usar o plugin; o script conecta nela, não abre a sua própria.
+The first time, log in normally in that window. The session is saved in
+that dedicated profile (separate from your everyday Chrome), so next time
+it opens already logged in — but **the window needs to stay open** while
+you use the plugin; the script connects to it, it doesn't open its own.
 
-Se o script não conseguir conectar (`Could not connect to Chrome's debug
-port`), é porque essa janela não está aberta ou foi fechada — abra de novo.
+If the script can't connect (`Could not connect to Chrome's debug port`),
+it's because that window isn't open or was closed — open it again.
 
 ### PATH
 
-`os.execute` herda o ambiente do processo do Aseprite. Se você abriu o Aseprite
-pelo launcher gráfico ou pela Steam, o `PATH` provavelmente não tem `~/.local/bin`
-nem o node do nvm. **Use caminho absoluto do binário** no template se der
-"command not found".
+`os.execute` inherits Aseprite's own process environment. If you opened
+Aseprite via a graphical launcher or Steam, `PATH` probably lacks things
+like `~/.local/bin` or nvm's node. **Use an absolute path to the binary**
+in the template if you get "command not found".
 
-## Fator de proximidade
+## Proximity factor
 
-O slider "Fator de proximidade" (0-100) controla o quanto o resultado deve
-se parecer com o sprite original, versus priorizar o que foi pedido no
-prompt. Não existe um parâmetro tipo "strength"/"denoise" na API ou na UI do
-Gemini pra isso — o slider vira uma instrução em texto (em inglês, junto do
-prompt) que muda dependendo da faixa:
+The "Proximity factor" slider (0-100) controls how closely the result
+should resemble the original sprite, versus prioritizing what was asked in
+the prompt. There's no "strength"/"denoise"-style
+parameter in Gemini's API or UI for this — the slider turns into a text
+instruction (in English, alongside the prompt) that changes depending on
+the range:
 
-| Faixa | Instrução |
+| Range | Instruction |
 |---|---|
-| 90-100 | Preservar pose, proporções, composição e silhueta; só aplicar a mudança pedida. |
-| 60-89 | Ficar razoavelmente perto da composição original, mas ajustar detalhes livremente. |
-| 30-59 | Usar o desenho só como referência solta (forma/paleta geral); pode reinterpretar bastante. |
-| 0-29 | Usar o desenho só como inspiração de cor/estilo; priorizar o prompt sobre a composição original. |
+| 90-100 | Preserve pose, proportions, composition, and silhouette; only apply the requested change. |
+| 60-89 | Stay reasonably close to the original composition, but adjust details freely. |
+| 30-59 | Use the drawing only as a loose reference (general shape/palette); can reinterpret significantly. |
+| 0-29 | Use the drawing only as color/style inspiration; prioritize the prompt over the original composition. |
 
-Isso é só orientação por texto pro modelo — ele pode não seguir à risca,
-principalmente perto dos extremos.
+This is only text guidance for the model — it may not follow it strictly,
+especially near the extremes.
 
-## Dicas de uso
+## Usage tips
 
-- **Ampliar antes de enviar**: modelos de imagem trabalham em ~1024px. Mandar um
-  PNG 32×32 cru dá resultado ruim. O padrão (8×) manda 256×256 com nearest
-  neighbor, preservando a grade de pixels.
-- **Travar cores na paleta**: essencial para sprites indexados e para manter a
-  paleta original em sprites RGB.
-- **Reduzir com Média** costuma ganhar de Ponto quando o modelo devolve arte com
-  anti-aliasing; **Ponto** ganha quando ele devolve pixel art limpa.
-- Peça explicitamente no prompt: *"pixel art, {width}x{height} grid, no
-  anti-aliasing, flat colors"*. Não peça fundo transparente — o Nano Banana
-  não devolve alfa real (ver "Estado atual" acima); ele volta com fundo
-  branco/sólido opaco, que dá pra remover depois com a varinha mágica.
+- **Upscale before sending**: image models work at ~1024px. Sending a raw
+  32×32 PNG gives a bad result. The default (8×) sends 256×256 with nearest
+  neighbor, preserving the pixel grid.
+- **Lock colors to the palette**: essential for indexed sprites and to keep
+  the original palette on RGB sprites.
+- **Downscale with Average** tends to beat Point when the model returns art
+  with anti-aliasing; **Point** wins when it returns clean pixel art.
+- Explicitly ask in the prompt: *"pixel art, {width}x{height} grid, no
+  anti-aliasing, flat colors"*. Don't ask for a transparent background —
+  Nano Banana doesn't return real alpha (see "Current status" above); it
+  comes back with an opaque white/solid background, which you can remove
+  afterward with the magic wand.
 
-## Progresso e execução
+## Progress and execution
 
-O comando externo roda em segundo plano (via `Start-Process` do PowerShell no
-Windows — nomes de arquivo únicos por execução, ver "Debug" abaixo), não
-trava a UI do Aseprite. Enquanto roda, um diálogo mostra a última linha do log e o
-tempo decorrido (com um botão "Cancelar" pra parar de esperar, sem matar o
-processo em si). `tools/repixel-gemini-web/edit.mjs` imprime marcadores de
-etapa (`[3/6] Uploading input image...` etc.) que aparecem nesse diálogo —
-se usar outro comando externo, ele só vai mostrar o que o próprio comando
-imprimir no log.
+The external command runs in the background (via PowerShell's
+`Start-Process` on Windows — unique filenames per run, see "Debug" below),
+so it doesn't block Aseprite's UI. While it runs, a dialog shows the log's
+last line and elapsed time (with a "Cancel" button to stop waiting, without
+killing the process itself). `tools/kobixel-gemini-web/edit.mjs` prints step
+markers (`[3/6] Uploading input image...` etc.) that show up in that
+dialog — if you use a different external command, it'll only show whatever
+that command itself prints to the log.
 
-Timeout total de espera: 3 minutos (`MAX_WAIT_SECONDS` no `.lua`). Se o
-comando externo terminar sem gerar `{output}` — ou passar do timeout — o
-diálogo de progresso fecha e mostra o log completo num alerta.
+Total wait timeout: 3 minutes (`MAX_WAIT_SECONDS` in the `.lua`). If the
+external command finishes without producing `{output}` — or the timeout is
+exceeded — the progress dialog closes and shows the full log in an alert.
 
 ## Debug
 
-- Log de cada execução: `<temp>/aseprite-repixel-ai/repixel-<stamp>.log` (um
-  arquivo por execução — nome fixo daria pra uma segunda geração corromper o
-  `.bat` da primeira enquanto ela ainda roda em segundo plano).
-- PNGs de entrada/saída ficam na mesma pasta (`in-*.png`, `out-*.png`) — o
-  Aseprite não expõe `os.remove`, então eles não são apagados automaticamente.
-- Console de erros do Lua: `View > Developer Console`.
-- Só dá pra rodar uma geração por vez (o plugin bloqueia uma segunda
-  enquanto a primeira não termina).
+- Log per run: `<temp>/aseprite-kobixel/kobixel-<stamp>.log` (one file per
+  run — a fixed name would let a second generation corrupt the first run's
+  `.bat` while it's still running in the background).
+- Input/output PNGs live in the same folder (`in-*.png`, `out-*.png`) —
+  Aseprite doesn't expose `os.remove`, so they aren't deleted automatically.
+- Lua error console: `View > Developer Console`.
+- Only one generation can run at a time (the plugin blocks a second one
+  while the first hasn't finished).
 
-## Limitações conhecidas
+## Known limitations
 
-- A reamostragem é feita em Lua puro, pixel a pixel. Uma imagem 1024×1024 leva
-  alguns segundos (isso ainda roda de forma síncrona, depois que o comando
-  externo já terminou).
-- Requer Aseprite 1.3+.
+- Resampling is done in pure Lua, pixel by pixel. A 1024×1024 image takes a
+  few seconds (this still runs synchronously, after the external command
+  has already finished).
+- Requires Aseprite 1.3+.

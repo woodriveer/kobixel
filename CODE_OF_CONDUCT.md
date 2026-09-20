@@ -60,7 +60,7 @@ the project in public spaces.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by opening an issue in this repository at
-[woodriveer/repixel-ai](https://github.com/woodriveer/repixel-ai/issues). If
+[woodriveer/kobixel](https://github.com/woodriveer/kobixel/issues). If
 the report concerns a maintainer, or you'd rather not report it publicly,
 contact a maintainer directly through their GitHub profile instead.
 

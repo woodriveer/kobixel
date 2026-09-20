@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Bumps the version in package.json and builds a new
-    repixel-ai-X.Y.Z.aseprite-extension, removing old builds.
+    kobixel-X.Y.Z.aseprite-extension, removing old builds.
 
 .USAGE
     .\release.ps1                # bumps the patch version (0.1.0 -> 0.1.1)
@@ -45,11 +45,11 @@ $newContent = $content -replace '"version":\s*"\d+\.\d+\.\d+"', "`"version`": `"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $pkgPath), $newContent, $utf8NoBom)
 
-Remove-Item -Force -ErrorAction SilentlyContinue repixel-ai-*.aseprite-extension
-$zipPath = "repixel-ai-$newVersion.zip"
+Remove-Item -Force -ErrorAction SilentlyContinue kobixel-*.aseprite-extension
+$zipPath = "kobixel-$newVersion.zip"
 Remove-Item -Force -ErrorAction SilentlyContinue $zipPath
-Compress-Archive -Path package.json, repixel-ai.lua -DestinationPath $zipPath -CompressionLevel Optimal
-$extPath = "repixel-ai-$newVersion.aseprite-extension"
+Compress-Archive -Path package.json, kobixel.lua -DestinationPath $zipPath -CompressionLevel Optimal
+$extPath = "kobixel-$newVersion.aseprite-extension"
 Rename-Item $zipPath $extPath -Force
 
 Write-Output "Built $extPath (version $newVersion)"

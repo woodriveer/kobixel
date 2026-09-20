@@ -1,4 +1,4 @@
-# Contributing to Repixel AI
+# Contributing to Kobixel
 
 Thanks for taking the time to contribute. This project is a small Aseprite
 extension plus an external CLI backend — the notes below should be enough to
@@ -7,18 +7,18 @@ get a change from idea to merged PR.
 ## Project layout
 
 Read [`CLAUDE.md`](CLAUDE.md) first — it's the up-to-date architecture
-reference (how `repixel-ai.lua` is structured, why the Windows async
+reference (how `kobixel.lua` is structured, why the Windows async
 execution path looks the way it does, the `{input}/{output}/{prompt}`
 contract external backends must implement, etc.). This file only covers the
 contribution *process*; `CLAUDE.md` covers the *code*.
 
 In short:
 
-- `repixel-ai.lua` + `package.json` → the actual Aseprite extension.
-- `tools/repixel-gemini-web/` → the recommended external CLI backend
+- `kobixel.lua` + `package.json` → the actual Aseprite extension.
+- `tools/kobixel-gemini-web/` → the recommended external CLI backend
   (Playwright, attaches to a Chrome window you already logged into).
-- `README.md` (Portuguese, source of truth) / `README.en-US.md` (English) →
-  user-facing setup and usage docs.
+- `README.md` (English) / `README.pt-BR.md` (Portuguese) → user-facing
+  setup and usage docs.
 
 ## Before you start
 
@@ -35,7 +35,7 @@ In short:
 
 ## Making changes
 
-### `repixel-ai.lua`
+### `kobixel.lua`
 
 There's no automated test suite for the Lua side — it only runs inside
 Aseprite. To verify a change:
@@ -46,26 +46,26 @@ Aseprite. To verify a change:
 
 Then in Aseprite: `Edit > Preferences > Extensions` → remove the old
 version first → `Add Extension` → pick the new `.aseprite-extension` →
-restart Aseprite → exercise `Edit > Repixel AI...` manually.
+restart Aseprite → exercise `Edit > Kobixel...` manually.
 
 **Always bump the version** (`release.ps1` does this for you, patch by
-default) after editing `repixel-ai.lua` — Aseprite only offers an update
+default) after editing `kobixel.lua` — Aseprite only offers an update
 when `version` increases, so reinstalling without bumping silently keeps the
 old script.
 
-### `tools/repixel-gemini-web/edit.mjs`
+### `tools/kobixel-gemini-web/edit.mjs`
 
 ```sh
-cd tools/repixel-gemini-web
+cd tools/kobixel-gemini-web
 npm install
-node --test tools/repixel-gemini-web/edit.test.mjs
+node --test tools/kobixel-gemini-web/edit.test.mjs
 ```
 
 (Run the test file directly — the directory form `node --test
-tools/repixel-gemini-web` fails with `MODULE_NOT_FOUND` on Windows/Node 22.)
+tools/kobixel-gemini-web` fails with `MODULE_NOT_FOUND` on Windows/Node 22.)
 
 Before wiring a command change into the Aseprite dialog, test it standalone
-in a terminal first (`node tools/repixel-gemini-web/edit.mjs --in foo.png
+in a terminal first (`node tools/kobixel-gemini-web/edit.mjs --in foo.png
 --out out.png --prompt "..."`) — Aseprite's dialog truncates error output.
 
 ### Documentation

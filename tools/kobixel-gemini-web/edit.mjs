@@ -12,7 +12,7 @@
 //
 // One-time setup, run yourself (not via this script):
 //   "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
-//     --user-data-dir="%USERPROFILE%\.repixel-ai\chrome-profile" ^
+//     --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" ^
 //     --remote-debugging-port=9222 https://gemini.google.com/app
 // Log into your Google account in that window, confirm the Gemini prompt
 // box works, and leave the window open (don't close it — this script needs
@@ -37,8 +37,8 @@ function arg(name) {
 }
 
 // Like arg(), but returns undefined instead of exiting when the flag is
-// absent — {width}/{height} are optional so a hand-edited "Comando externo"
-// without them keeps working.
+// absent — {width}/{height} are optional so a hand-edited "External
+// command" field without them keeps working.
 function optionalArg(name) {
   const i = process.argv.indexOf(`--${name}`);
   if (i === -1 || !process.argv[i + 1]) return undefined;
@@ -50,7 +50,7 @@ export const BASE_PIXEL_ART_INSTRUCTIONS =
   "no smoothing, no gradients, no blur.";
 
 // Builds the canvas-size sentence from the REAL dimensions of the image
-// actually sent (data.upscale in repixel-ai.lua changes this per-sprite),
+// actually sent (data.upscale in kobixel.lua changes this per-sprite),
 // instead of a fixed claim that used to say "256x256" regardless of what
 // was really uploaded.
 export function buildPixelArtInstructions({ width, height } = {}) {

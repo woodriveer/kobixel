@@ -1,29 +1,29 @@
 ----------------------------------------------------------------------
--- Repixel AI - Aseprite extension
+-- Kobixel - Aseprite extension
 --
--- Exporta o sprite (ou a cel/seleção atual) para PNG, manda para um CLI
--- local de geração de imagem (Gemini / nano-banana / o que você quiser)
--- junto com um prompt, e traz o resultado de volta para dentro do sprite.
+-- Exports the sprite (or the current cel/selection) to PNG, sends it to a
+-- local image-generation CLI (Gemini / nano-banana / whatever you want)
+-- along with a prompt, and brings the result back into the sprite.
 --
--- Requer Aseprite v1.3+ (usa Image:pixels(), app.fs, app.transaction).
+-- Requires Aseprite v1.3+ (uses Image:pixels(), app.fs, app.transaction).
 ----------------------------------------------------------------------
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'node "D:\\Developer\\repixel-ai\\tools\\repixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
-  source      = "sprite",     -- "sprite" (frame achatado) | "cel"
+  command     = 'node "D:\\Developer\\kobixel\\tools\\kobixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
+  source      = "sprite",     -- "sprite" (flattened frame) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
-  upscale     = 8,            -- fator de ampliação do que é ENVIADO
+  upscale     = 8,            -- upscale factor for what is SENT
   resample    = "average",    -- "average" | "point"
   snapPalette = true,
   alphaCut    = 128,
-  fidelity    = 70,           -- 0-100: fator de proximidade com o desenho original
+  fidelity    = 70,           -- 0-100: proximity factor to the original drawing
 }
 
-local cfg = {}   -- config em memória (espelha plugin.preferences)
+local cfg = {}   -- in-memory config (mirrors plugin.preferences)
 
 ----------------------------------------------------------------------
--- utilitários de sistema / arquivos
+-- system/file utilities
 ----------------------------------------------------------------------
 
 local function isWindows()
@@ -32,7 +32,7 @@ end
 
 local function workDir()
   local base = app.fs.tempPath or app.fs.userConfigPath or app.fs.currentPath or "."
-  local dir = app.fs.joinPath(base, "aseprite-repixel-ai")
+  local dir = app.fs.joinPath(base, "aseprite-kobixel")
   if not app.fs.isDirectory(dir) then
     app.fs.makeAllDirectories(dir)
   end
@@ -50,11 +50,11 @@ local function readFile(path, maxBytes)
   return s
 end
 
--- escapa o prompt para ir dentro de aspas duplas no shell
+-- escapes the prompt to go inside double quotes in the shell
 local function escapeForShell(s)
   if isWindows() then
-    -- cmd.exe: sem escape confiável para aspas; troca por aspas simples
-    -- e remove metacaracteres perigosos.
+    -- cmd.exe: no reliable quote escaping; swap for single quotes
+    -- and strip dangerous shell metacharacters.
     s = s:gsub('"', "'")
     s = s:gsub("[%%&|<>^]", " ")
     return s
@@ -63,19 +63,19 @@ local function escapeForShell(s)
   end
 end
 
--- substitui {input} {output} {prompt} no template
+-- substitutes {input} {output} {prompt} in the template
 local function fillTemplate(tpl, map)
   return (tpl:gsub("{(%w+)}", function(key)
     return map[key] or ("{" .. key .. "}")
   end))
 end
 
--- traduz o slider de fidelidade (0-100) numa instrução em texto pro
--- modelo de imagem: não existe um parâmetro tipo "strength" na API/UI do
--- Gemini pra controlar isso, então o único jeito é pedir por escrito.
--- 100 = ficar o mais parecido possível com o desenho original (só aplica
--- a mudança pedida); 0 = usar o desenho só como inspiração solta de
--- cor/estilo e priorizar o que foi pedido no prompt.
+-- translates the fidelity slider (0-100) into a text instruction for the
+-- image model: there's no "strength"-style parameter in Gemini's API/UI
+-- to control this, so the only way is to ask for it in writing.
+-- 100 = stay as close as possible to the original drawing (only apply
+-- the requested change); 0 = use the drawing only as loose color/style
+-- inspiration and prioritize what was asked in the prompt.
 local function fidelityInstruction(fidelity)
   if fidelity >= 90 then
     return "Preserve the input image closely: keep the same pose, proportions, " ..
@@ -96,33 +96,33 @@ local function fidelityInstruction(fidelity)
   end
 end
 
--- grava um script wrapper e DISPARA EM SEGUNDO PLANO: aseprite roda tudo
--- numa thread só, então um os.execute comum trava a UI inteira pelos
--- 20-90s+ que o comando externo leva. Start-Process do PowerShell devolve
--- o controle na hora; o wrapper também grava o código de saída num arquivo
--- "done" à parte, pra dar pra saber que o processo terminou sem precisar
--- esperar o timeout inteiro em caso de erro.
+-- writes a wrapper script and FIRES IT IN THE BACKGROUND: Aseprite runs
+-- everything on a single thread, so a plain os.execute would freeze the
+-- whole UI for the 20-90s+ the external command takes. PowerShell's
+-- Start-Process returns control immediately; the wrapper also writes the
+-- exit code to a separate "done" file, so we can tell the process finished
+-- without waiting out the full timeout on error.
 --
--- O nome do wrapper é único por execução (com "stamp"): como isso roda em
--- segundo plano, nada impede o usuário de clicar em "Gerar" de novo antes
--- da primeira geração terminar (60-90s+) — e o Windows lê o .bat linha a
--- linha por posição no arquivo, então se duas execuções reaproveitassem o
--- mesmo nome de arquivo, a segunda sobrescreveria o .bat enquanto a
--- primeira ainda está sendo interpretada, corrompendo a execução (pula
--- linhas, silenciosamente nunca chega a rodar o comando externo).
+-- The wrapper's filename is unique per run (via "stamp"): since this runs
+-- in the background, nothing stops the user from clicking "Generate" again
+-- before the first generation finishes (60-90s+) — and Windows reads the
+-- .bat line by line by file position, so if two runs reused the same
+-- filename, the second would overwrite the .bat while the first is still
+-- being interpreted, corrupting the run (skips lines, silently never gets
+-- around to running the external command).
 local function runCommandAsync(cmd, logPath, donePath, stamp)
   local dir = workDir()
-  local runner = app.fs.joinPath(dir, "repixel-run-" .. stamp .. (isWindows() and ".bat" or ".sh"))
+  local runner = app.fs.joinPath(dir, "kobixel-run-" .. stamp .. (isWindows() and ".bat" or ".sh"))
 
   local f = io.open(runner, "w")
   if not f then
-    return false, "Não consegui escrever o script wrapper em " .. runner
+    return false, "Could not write the wrapper script to " .. runner
   end
   if isWindows() then
     f:write("@echo off\r\n")
-    -- sem isso o console fica na code page do sistema (ex. cp1252) e
-    -- qualquer acento na saida do CLI vira byte invalido, truncando o
-    -- texto exibido no app.alert.
+    -- without this the console stays on the system code page (e.g. cp1252)
+    -- and any accented character in the CLI's output becomes an invalid
+    -- byte, truncating the text shown in app.alert.
     f:write("chcp 65001 >nul\r\n")
     f:write(cmd .. ' > "' .. logPath .. '" 2>&1\r\n')
     f:write('echo %ERRORLEVEL% > "' .. donePath .. '"\r\n')
@@ -135,12 +135,13 @@ local function runCommandAsync(cmd, logPath, donePath, stamp)
 
   local ok
   if isWindows() then
-    -- NÃO usar "start /B" aqui: ele reaproveita o console do processo que
-    -- chamou, e o cmd.exe efêmero que o os.execute cria (o Aseprite é uma
-    -- GUI sem console próprio) morre quase na hora — o que pode derrubar
-    -- junto o processo filho antes dele rodar de verdade. É intermitente:
-    -- às vezes funciona, às vezes o CLI nunca chega a executar. Start-Process
-    -- do PowerShell cria um processo de verdade desacoplado desse console.
+    -- do NOT use "start /B" here: it reuses the caller process's console,
+    -- and the ephemeral cmd.exe that os.execute creates (Aseprite is a GUI
+    -- app with no console of its own) dies almost immediately — which can
+    -- take the child process down with it before it really runs. It's
+    -- intermittent: sometimes it works, sometimes the CLI never gets to
+    -- run. PowerShell's Start-Process creates a real process detached
+    -- from that console.
     ok = os.execute(
       'powershell -NoProfile -WindowStyle Hidden -Command ' ..
       '"Start-Process -FilePath \'' .. runner .. '\' -WindowStyle Hidden"')
@@ -150,8 +151,8 @@ local function runCommandAsync(cmd, logPath, donePath, stamp)
   return ok, nil
 end
 
--- última linha não-vazia de um texto (pra mostrar só o passo mais recente
--- do log no diálogo de progresso).
+-- last non-empty line of a string (to show only the most recent step
+-- from the log in the progress dialog).
 local function lastLine(s)
   if not s or s == "" then return nil end
   local last = nil
@@ -162,7 +163,7 @@ local function lastLine(s)
 end
 
 ----------------------------------------------------------------------
--- conversão de cores
+-- color conversion
 ----------------------------------------------------------------------
 
 local pc = app.pixelColor
@@ -171,7 +172,7 @@ local function paletteOf(sprite)
   return sprite.palettes[1]
 end
 
--- qualquer modo de cor -> imagem RGBA
+-- any color mode -> RGBA image
 local function toRGBA(src, sprite)
   if src.colorMode == ColorMode.RGB then
     return src
@@ -215,7 +216,7 @@ local function nearestPaletteIndex(pal, r, g, b)
   return best
 end
 
--- RGBA -> modo de cor do sprite (opcionalmente travando na paleta)
+-- RGBA -> sprite's color mode (optionally snapping to the palette)
 local function toSpriteColorMode(src, sprite, snap, alphaCut)
   local cm = sprite.colorMode
   if cm == ColorMode.RGB and not snap then
@@ -250,7 +251,7 @@ local function toSpriteColorMode(src, sprite, snap, alphaCut)
 end
 
 ----------------------------------------------------------------------
--- reamostragem
+-- resampling
 ----------------------------------------------------------------------
 
 local function upscaleNearest(img, factor)
@@ -282,7 +283,7 @@ local function resampleTo(src, w, h, mode)
         local py = math.min(src.height - 1, math.floor((y + 0.5) * sy))
         out:putPixel(x, y, src:getPixel(px, py))
       else
-        -- média em caixa, com alfa pré-multiplicado
+        -- box average, with premultiplied alpha
         local x0 = math.floor(x * sx)
         local x1 = math.min(src.width - 1, math.max(x0, math.ceil((x + 1) * sx) - 1))
         local y0 = math.floor(y * sy)
@@ -313,14 +314,14 @@ local function resampleTo(src, w, h, mode)
 end
 
 ----------------------------------------------------------------------
--- I/O de imagem (com fallbacks para variações da API)
+-- image I/O (with fallbacks for API variations)
 ----------------------------------------------------------------------
 
 local function savePNG(img, path)
   local ok = pcall(function() img:saveAs(path) end)
   if ok then return true end
 
-  -- fallback: cria um sprite temporário e salva uma cópia
+  -- fallback: create a temporary sprite and save a copy
   local prev = app.sprite
   local tmp = Sprite(img.width, img.height, ColorMode.RGB)
   tmp.cels[1].image = img
@@ -335,7 +336,7 @@ local function loadPNG(path)
   local ok = pcall(function() img = Image{ fromFile = path } end)
   if ok and img then return img end
 
-  -- fallback: abre como sprite, achata em uma Image, fecha
+  -- fallback: open as a sprite, flatten into an Image, close
   local prev = app.sprite
   local tmp
   local ok2 = pcall(function() tmp = Sprite{ fromFile = path } end)
@@ -353,39 +354,40 @@ local function loadPNG(path)
 end
 
 ----------------------------------------------------------------------
--- pipeline principal
+-- main pipeline
 ----------------------------------------------------------------------
 
 local MAX_WAIT_SECONDS = 180
 local POLL_INTERVAL = 0.5
-local runCounter = 0   -- garante stamp único mesmo se disparado no mesmo segundo
-local activeRun = false -- trava simples: só uma geração por vez nesta sessão
+local runCounter = 0   -- ensures a unique stamp even if fired within the same second
+local activeRun = false -- simple lock: only one generation at a time in this session
 
--- traz o PNG gerado de volta pro sprite: reamostra, converte pro modo de
--- cor do sprite, e insere numa transaction (Ctrl+Z desfaz de uma vez).
+-- brings the generated PNG back into the sprite: resamples, converts to
+-- the sprite's color mode, and inserts it inside a transaction (Ctrl+Z
+-- undoes everything at once).
 --
--- frameNumber/targetLayer vêm capturados de QUANDO O USUÁRIO CLICOU EM
--- "Gerar", não lidos de app.frame/app.layer aqui: a geração roda em segundo
--- plano por 30-90s+, e se o usuário trocar de aba/frame nesse meio tempo,
--- app.frame/app.layer nesse momento já apontam pra outra coisa — o
--- resultado entraria no lugar errado, sem erro nenhum pra avisar.
+-- frameNumber/targetLayer are captured from WHEN THE USER CLICKED
+-- "Generate", not read from app.frame/app.layer here: the generation runs
+-- in the background for 30-90s+, and if the user switches tabs/frames in
+-- the meantime, app.frame/app.layer would then point somewhere else — the
+-- result would land in the wrong place with no error to warn about it.
 local function finalizeResult(data, sprite, rect, outPath, frameNumber, targetLayer)
   local result = loadPNG(outPath)
   if not result then
-    return app.alert("Não consegui ler o PNG gerado:\n" .. outPath)
+    return app.alert("Could not read the generated PNG:\n" .. outPath)
   end
 
   local shrunk = resampleTo(result, rect.width, rect.height, data.resample)
   local final = toSpriteColorMode(shrunk, sprite, data.snapPalette, data.alphaCut)
 
-  app.transaction("Repixel AI", function()
+  app.transaction("Kobixel", function()
     if data.target == "new_layer" then
       local layer = sprite:newLayer()
-      layer.name = "Repixel AI: " .. data.prompt:sub(1, 24)
+      layer.name = "Kobixel: " .. data.prompt:sub(1, 24)
       sprite:newCel(layer, frameNumber, final, Point(rect.x, rect.y))
     else
       if not targetLayer or not targetLayer.isImage then
-        return app.alert("A camada atual não aceita pixels. Use 'Nova camada'.")
+        return app.alert("The current layer doesn't accept pixels. Use 'New layer'.")
       end
       local cel = targetLayer:cel(frameNumber)
       if cel then
@@ -403,29 +405,29 @@ end
 local function run(data)
   local sprite = app.sprite
   if not sprite then
-    return app.alert("Nenhum sprite aberto.")
+    return app.alert("No sprite open.")
   end
   if data.prompt == "" then
-    return app.alert("Escreva um prompt.")
+    return app.alert("Write a prompt.")
   end
   if activeRun then
-    return app.alert("Já tem uma geração do Repixel AI rodando. Espere terminar antes de pedir outra.")
+    return app.alert("A Kobixel generation is already running. Wait for it to finish before requesting another.")
   end
 
-  -- Captura frame/camada AGORA: a geração roda em segundo plano por
-  -- 30-90s+, e se o usuário trocar de aba/frame nesse meio tempo,
-  -- app.frame/app.layer no momento em que terminar já apontam pra outra
-  -- coisa. Ver o comentário em finalizeResult.
+  -- Capture frame/layer NOW: the generation runs in the background for
+  -- 30-90s+, and if the user switches tabs/frames in the meantime,
+  -- app.frame/app.layer would point somewhere else by the time it
+  -- finishes. See the comment in finalizeResult.
   local frameNumber = app.frame
   local targetLayer = app.layer
 
-  -- 1. área de trabalho: seleção, se houver; senão o sprite/cel inteiro
+  -- 1. work area: the selection, if any; otherwise the whole sprite/cel
   local rect
   local baseImage
   if data.source == "cel" then
     local cel = app.cel
     if not cel then
-      return app.alert("A camada atual não tem cel neste frame.")
+      return app.alert("The current layer has no cel on this frame.")
     end
     baseImage = cel.image
     rect = Rectangle(cel.position.x, cel.position.y, cel.image.width, cel.image.height)
@@ -449,7 +451,7 @@ local function run(data)
     end
   end
 
-  -- 2. prepara o PNG de entrada (RGBA + ampliação nearest)
+  -- 2. prepare the input PNG (RGBA + nearest-neighbor upscale)
   local rgba = toRGBA(baseImage, sprite)
   local sent = upscaleNearest(rgba, data.upscale)
 
@@ -458,17 +460,17 @@ local function run(data)
   local stamp = tostring(os.time()) .. "-" .. tostring(runCounter)
   local inPath   = app.fs.joinPath(dir, "in-" .. stamp .. ".png")
   local outPath  = app.fs.joinPath(dir, "out-" .. stamp .. ".png")
-  local logPath  = app.fs.joinPath(dir, "repixel-" .. stamp .. ".log")
+  local logPath  = app.fs.joinPath(dir, "kobixel-" .. stamp .. ".log")
   local donePath = app.fs.joinPath(dir, "done-" .. stamp .. ".txt")
 
   if not savePNG(sent, inPath) then
-    return app.alert("Falha ao salvar o PNG de entrada em:\n" .. inPath)
+    return app.alert("Failed to save the input PNG to:\n" .. inPath)
   end
 
-  -- 3. monta e dispara o comando em segundo plano (não bloqueia a UI)
-  -- Ordem final enviada ao Gemini: prompt do usuário -> instrução de
-  -- fator de proximidade -> texto fixo de pixel art (esse último é
-  -- colado pelos backends, ex. edit.mjs, logo depois do {prompt}).
+  -- 3. build and fire the command in the background (doesn't block the UI)
+  -- Final order sent to Gemini: user prompt -> proximity-factor instruction
+  -- -> fixed pixel-art text (the latter is appended by backends, e.g.
+  -- edit.mjs, right after {prompt}).
   local effectivePrompt = data.prompt .. fidelityInstruction(data.fidelity)
   local cmd = fillTemplate(data.command, {
     input  = inPath,
@@ -481,13 +483,13 @@ local function run(data)
   local ok, err = runCommandAsync(cmd, logPath, donePath, stamp)
   if err then return app.alert(err) end
   if not ok then
-    return app.alert("Não consegui iniciar o comando externo.\n\nComando:\n" .. cmd)
+    return app.alert("Could not start the external command.\n\nCommand:\n" .. cmd)
   end
 
-  -- 4. diálogo de progresso: um Timer confere periodicamente se o arquivo
-  -- de saída (ou o sentinel de "terminou") já apareceu, e vai atualizando
-  -- o texto com a última linha do log — sem travar a UI do Aseprite.
-  local progress = Dialog{ title = "Repixel AI" }
+  -- 4. progress dialog: a Timer periodically checks whether the output
+  -- file (or the "done" sentinel) has appeared yet, updating the text
+  -- with the log's last line — without blocking Aseprite's UI.
+  local progress = Dialog{ title = "Kobixel" }
   local elapsed = 0
   local timer
 
@@ -499,17 +501,17 @@ local function run(data)
 
   local function onFailure()
     stopAndClose()
-    local log = readFile(logPath, 1200) or "(sem log)"
+    local log = readFile(logPath, 1200) or "(no log)"
     app.alert{
-      title = "Repixel AI",
+      title = "Kobixel",
       text = {
-        "O CLI não gerou o arquivo de saída esperado:",
+        "The CLI did not generate the expected output file:",
         outPath,
         "",
-        "Comando:",
+        "Command:",
         cmd,
         "",
-        "Saída do comando:",
+        "Command output:",
         log,
       }
     }
@@ -517,21 +519,21 @@ local function run(data)
 
   local function onSuccess()
     stopAndClose()
-    -- pcall: se o sprite foi fechado ou virou inválido durante a espera
-    -- (30-90s+ em segundo plano), isso vira um alerta em vez de um erro
-    -- silencioso só no Developer Console.
+    -- pcall: if the sprite was closed or became invalid during the wait
+    -- (30-90s+ in the background), this turns into an alert instead of a
+    -- silent error only visible in the Developer Console.
     local finalizeOk, finalizeErr = pcall(finalizeResult, data, sprite, rect, outPath, frameNumber, targetLayer)
     if not finalizeOk then
-      app.alert("Erro ao inserir o resultado no sprite:\n" .. tostring(finalizeErr) ..
-        "\n\nO PNG gerado continua em:\n" .. outPath)
+      app.alert("Error inserting the result into the sprite:\n" .. tostring(finalizeErr) ..
+        "\n\nThe generated PNG is still at:\n" .. outPath)
     end
   end
 
   activeRun = true
 
-  progress:label{ id = "status", text = "Iniciando..." }
+  progress:label{ id = "status", text = "Starting..." }
   progress:separator{}
-  progress:button{ id = "cancel", text = "Cancelar", onclick = stopAndClose }
+  progress:button{ id = "cancel", text = "Cancel", onclick = stopAndClose }
 
   timer = Timer{
     interval = POLL_INTERVAL,
@@ -542,8 +544,8 @@ local function run(data)
         return onSuccess()
       end
       if app.fs.isFile(donePath) then
-        -- o processo terminou (bem ou mal) sem gravar outPath: não faz
-        -- sentido continuar esperando o timeout inteiro.
+        -- the process finished (successfully or not) without writing
+        -- outPath: no point waiting out the full timeout.
         return onFailure()
       end
       if elapsed >= MAX_WAIT_SECONDS then
@@ -551,9 +553,9 @@ local function run(data)
       end
 
       local dots = string.rep(".", math.floor(elapsed / POLL_INTERVAL) % 4)
-      local last = lastLine(readFile(logPath, 400)) or "aguardando o CLI..."
+      local last = lastLine(readFile(logPath, 400)) or "waiting for the CLI..."
       progress:modify{ id = "status", text =
-        string.format("Gerando%s (%ds)\n%s", dots, math.floor(elapsed), last) }
+        string.format("Generating%s (%ds)\n%s", dots, math.floor(elapsed), last) }
     end
   }
   timer:start()
@@ -562,56 +564,56 @@ local function run(data)
 end
 
 ----------------------------------------------------------------------
--- interface
+-- dialog / config
 ----------------------------------------------------------------------
 
 local function showDialog(plugin)
-  -- carrega preferências
+  -- load preferences
   local saved = (plugin and plugin.preferences and plugin.preferences.cfg) or cfg
   for k, v in pairs(DEFAULTS) do
     if saved[k] == nil then saved[k] = v end
   end
 
-  local dlg = Dialog("Repixel AI")
+  local dlg = Dialog("Kobixel")
 
   dlg:entry{ id = "prompt", label = "Prompt:", text = saved.prompt, focus = true }
 
-  dlg:slider{ id = "fidelity", label = "Fator de proximidade:",
+  dlg:slider{ id = "fidelity", label = "Proximity factor:",
               min = 0, max = 100, value = saved.fidelity }
-  dlg:label{ label = "", text = "100 = igual ao desenho, só aplica o pedido · 0 = usa o desenho só como inspiração solta" }
+  dlg:label{ label = "", text = "100 = same as the drawing, only applies the request · 0 = uses the drawing only as loose inspiration" }
 
   dlg:combobox{
-    id = "source", label = "Enviar:",
-    option = saved.source == "cel" and "Camada atual" or "Sprite achatado",
-    options = { "Sprite achatado", "Camada atual" } }
+    id = "source", label = "Send:",
+    option = saved.source == "cel" and "Current layer" or "Flattened sprite",
+    options = { "Flattened sprite", "Current layer" } }
 
-  dlg:slider{ id = "upscale", label = "Ampliar antes de enviar:",
+  dlg:slider{ id = "upscale", label = "Upscale before sending:",
               min = 1, max = 32, value = saved.upscale }
 
-  dlg:separator{ text = "Volta para o sprite" }
+  dlg:separator{ text = "Back to the sprite" }
 
   dlg:combobox{
-    id = "target", label = "Aplicar em:",
-    option = saved.target == "replace" and "Substituir cel atual" or "Nova camada",
-    options = { "Nova camada", "Substituir cel atual" } }
+    id = "target", label = "Apply to:",
+    option = saved.target == "replace" and "Replace current cel" or "New layer",
+    options = { "New layer", "Replace current cel" } }
 
   dlg:combobox{
-    id = "resample", label = "Reduzir com:",
-    option = saved.resample == "point" and "Ponto (nítido)" or "Média (suave)",
-    options = { "Média (suave)", "Ponto (nítido)" } }
+    id = "resample", label = "Downscale with:",
+    option = saved.resample == "point" and "Point (sharp)" or "Average (smooth)",
+    options = { "Average (smooth)", "Point (sharp)" } }
 
-  dlg:check{ id = "snapPalette", text = "Travar cores na paleta do sprite",
+  dlg:check{ id = "snapPalette", text = "Lock colors to the sprite's palette",
              selected = saved.snapPalette }
 
-  dlg:slider{ id = "alphaCut", label = "Corte de alfa:",
+  dlg:slider{ id = "alphaCut", label = "Alpha cutoff:",
               min = 1, max = 255, value = saved.alphaCut }
 
-  dlg:separator{ text = "Comando externo" }
+  dlg:separator{ text = "External command" }
   dlg:label{ label = "", text = "Placeholders: {input} {output} {prompt} {width} {height}" }
   dlg:entry{ id = "command", label = "", text = saved.command }
 
-  dlg:button{ id = "ok", text = "Gerar", focus = false }
-  dlg:button{ id = "cancel", text = "Cancelar" }
+  dlg:button{ id = "ok", text = "Generate", focus = false }
+  dlg:button{ id = "cancel", text = "Cancel" }
 
   dlg:show()
 
@@ -622,15 +624,15 @@ local function showDialog(plugin)
     prompt      = d.prompt,
     fidelity    = d.fidelity,
     command     = d.command,
-    source      = (d.source == "Camada atual") and "cel" or "sprite",
-    target      = (d.target == "Substituir cel atual") and "replace" or "new_layer",
-    resample    = (d.resample == "Ponto (nítido)") and "point" or "average",
+    source      = (d.source == "Current layer") and "cel" or "sprite",
+    target      = (d.target == "Replace current cel") and "replace" or "new_layer",
+    resample    = (d.resample == "Point (sharp)") and "point" or "average",
     upscale     = d.upscale,
     snapPalette = d.snapPalette,
     alphaCut    = d.alphaCut,
   }
 
-  -- persiste
+  -- persist
   if plugin and plugin.preferences then
     plugin.preferences.cfg = data
   end
@@ -640,16 +642,17 @@ local function showDialog(plugin)
 end
 
 ----------------------------------------------------------------------
--- entrada como extensão
+-- extension entry point
 ----------------------------------------------------------------------
 
 function init(plugin)
-  -- O "group" precisa ser o id exato de um grupo existente no gui.xml do
-  -- Aseprite. Id inválido = comando registrado (serve para atalho de teclado)
-  -- mas invisível em todos os menus. "file_scripts" = File > Scripts.
+  -- The "group" must be the exact id of an existing group in Aseprite's
+  -- own gui.xml. An invalid id = the command gets registered (works for a
+  -- keyboard shortcut) but is invisible in every menu. "file_scripts" =
+  -- File > Scripts.
   plugin:newCommand{
-    id = "RepixelAI",
-    title = "Repixel AI...",
+    id = "Kobixel",
+    title = "Kobixel...",
     group = "file_scripts",
     onclick = function() showDialog(plugin) end,
     onenabled = function() return app.sprite ~= nil end,
@@ -658,5 +661,5 @@ end
 
 function exit(plugin) end
 
--- Para testar como script solto (File > Scripts), descomente:
+-- To test as a standalone script (File > Scripts), uncomment:
 -- showDialog(nil)

@@ -1,15 +1,15 @@
 {
-  "name": "repixel-ai",
-  "displayName": "Repixel AI",
-  "description": "Envia o sprite atual + um prompt para um CLI local de geração de imagem e traz o resultado de volta para dentro do Aseprite.",
+  "name": "kobixel",
+  "displayName": "Kobixel",
+  "description": "Sends the current sprite + a prompt to a local image-generation CLI and brings the result back into Aseprite.",
   "version": "0.1.0",
   "author": {
-    "name": "Tapajós"
+    "name": "Yan Tapajós"
   },
   "license": "MIT",
   "contributes": {
     "scripts": [
-      { "path": "./repixel-ai.lua" }
+      { "path": "./kobixel.lua" }
     ]
   }
 }

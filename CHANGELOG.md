@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-20
+
+### Changed
+
+- Renamed the project and extension from `repixel-ai` to `kobixel` (display
+  name "Kobixel") — the old name was already established elsewhere in the
+  market. Renamed the Lua script (`repixel-ai.lua` → `kobixel.lua`), the
+  `package.json` `name`/`displayName`, the release artifact naming
+  (`repixel-ai-X.Y.Z.aseprite-extension` → `kobixel-X.Y.Z.aseprite-extension`),
+  and the external backend directory (`tools/repixel-gemini-web` →
+  `tools/kobixel-gemini-web`). `package.json`'s `version` field itself resets
+  to `0.1.0` (a different number from this changelog entry) so Aseprite
+  treats this as a brand-new extension — existing `repixel-ai` installs
+  won't auto-update; remove the old extension and install the new
+  `.aseprite-extension` fresh.
+- Added a README section explaining the "Kobixel" name: Japanese *kobo*
+  (工房, "workshop"/"atelier") + *pixel*.
+
+## [0.1.1] - 2026-09-14
+
+### Changed
+
+- Translated the dialog's UI text (labels, buttons, dropdown options, the
+  "Comando externo" field) and all `repixel-ai.lua` code comments from
+  Portuguese to English. Saved preferences are unaffected — they already
+  stored language-neutral internal values (e.g. `"cel"`/`"sprite"`), not
+  the display strings.
+
 ## [0.1.0] - 2026-09-14
 
 First tracked release, published as the project is made open source. Version
@@ -45,5 +73,7 @@ extension is shared with the wider community.
   external backend directory (`tools/gemini-web-edit` →
   `tools/repixel-gemini-web`).
 
-[Unreleased]: https://github.com/woodriveer/repixel-ai/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/woodriveer/repixel-ai/releases/tag/v0.1.0
+[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/woodriveer/kobixel/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/woodriveer/kobixel/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/woodriveer/kobixel/releases/tag/v0.1.0
