@@ -46,6 +46,20 @@ do nothing. This is the minimum change needed to make the rest of the
 feature work, not a scope expansion into `edit.mjs`'s own behavior - see
 NPMCLI-08.
 
+**Discovery note #2 (during T2 implementation):** `kobixel.lua`'s Windows
+wrapper invoked the External command bare (no `call`). This works for a
+plain `.exe` but is a documented cmd.exe trap for a `.bat`/`.cmd` target
+(exactly what an npm-installed global bin's shim is): control transfers
+into the called script and **never returns** to the wrapper, so the lines
+after it - including writing `donePath` - silently never run. Every run
+would poll until `MAX_WAIT_SECONDS` regardless of success or failure. Fixed
+by prefixing with `call`, which is a documented no-op for a plain `.exe`.
+This surfaced a second, related discovery: `call` also collapses cmd.exe's
+distinct "command not found" errorlevel (`9009`) down to a generic `1`,
+indistinguishable from the CLI's own failure codes - so NPMCLI-03 (below)
+had to be narrowed from "detect not-found specifically" to "hint on any
+failure," see the updated AC3 and its assumption row.
+
 ---
 
 ## Assumptions & Open Questions
@@ -57,6 +71,8 @@ NPMCLI-08.
 | Direct `node "path/to/edit.mjs" ...` invocation | Kept, documented as an alternative for contributors/CI who don't want a global install | Removing it would take away a working escape hatch for people actively editing `edit.mjs` | n (not asked - conservative, avoids breaking documented behavior) |
 | PATH resolution of the global npm bin dir | Rely on npm's standard behavior; document the known GUI-launcher PATH gap (already flagged in CLAUDE.md for `node` itself) using the same "use an absolute path" guidance, now pointed at the `kobixel-gemini-web` shim | Consistent with the project's existing documented workaround for the identical class of problem | n (not asked - extends an existing, already-accepted pattern) |
 | Entry-guard symlink fix (NPMCLI-08) | Resolve `process.argv[1]` with `fs.realpathSync()` before comparing to `import.meta.url`, so the comparison is symlink-safe | Minimal, one-line fix; matches the exact resolution Node's ESM loader already applies to `import.meta.url`, so the two sides become comparable again. Does not touch the CLI's argument contract or automation logic | y (user approved fixing it after the discovery was surfaced) |
+| Wrapper `call` fix (NPMCLI-09) | Prefix the Windows wrapper's invocation of the External command with `call` | Without it, a `.bat`/`.cmd` target (any npm global bin on Windows) never returns control to the wrapper, so `donePath` never gets written and every run silently polls to the 3-minute timeout. `call` is a documented no-op for `.exe` targets, so this is safe for every existing "External command" users may already have configured, not just the new default | y (user approved fixing it after the discovery was surfaced) |
+| Failure-hint precision (revises NPMCLI-03) | Append the install hint on **any** non-zero exit from the External command, worded as a suggestion ("if X isn't installed yet, run...") rather than a diagnosis of "not found" specifically | `call` collapses cmd.exe's specific "not found" errorlevel (9009) to a generic 1, indistinguishable from the CLI's own failure codes - so Windows can no longer detect "not found" precisely. POSIX `sh` could still use exit code 127 precisely (unaffected by this `call` issue), but the two OSes were kept symmetric rather than giving Windows and Linux/macOS users different message logic for the same scenario | n (not asked - judgment call favoring symmetry and honesty over false precision; flagged here for visibility) |
 
 **Open questions:** none - all resolved or logged above.
 
@@ -77,9 +93,10 @@ problem the last two turns identified.
 
 1. WHEN a user runs `npm install -g .` from `tools/kobixel-gemini-web` THEN the system SHALL register a global executable named `kobixel-gemini-web` that invokes `edit.mjs` through Node.
 2. The system SHALL ship the Aseprite extension's default "External command" as `kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"`, containing no absolute path and no OS-specific syntax.
-3. IF `kobixel-gemini-web` is not found on PATH WHEN the extension runs the external command THEN the system SHALL append a log line stating the command failed and instructing the user to run `npm install -g .` from `tools/kobixel-gemini-web` before continuing.
-4. WHEN the external command finishes without producing the expected output file THEN the existing Kobixel failure dialog SHALL display the log content (including the instructional line from AC3) - reusing already-implemented behavior, not new UI.
+3. IF the external command exits with a non-zero status THEN the system SHALL append a log line suggesting `kobixel-gemini-web` may not be installed and naming the fix (`npm install -g .` from `tools/kobixel-gemini-web`) - worded as a hint, not a diagnosis, since a non-zero exit can also mean the CLI ran and failed on its own (e.g. Chrome's debug port not open). **Revised from the original "IF not found" wording** - see the Assumptions row "Failure-hint precision".
+4. WHEN the external command finishes without producing the expected output file THEN the existing Kobixel failure dialog SHALL display the log content (including the hint line from AC3) - reusing already-implemented behavior, not new UI.
 5. WHEN `edit.mjs` is invoked through a path that crosses a symlink (e.g. via the global bin shim `npm install -g .` creates) THEN the system SHALL still recognize direct execution and run `main()` - the entry guard SHALL compare the real (symlink-resolved) path on both sides.
+6. WHEN the External command resolves to a `.bat` or `.cmd` file (as any npm global bin does on Windows) THEN the Windows wrapper SHALL invoke it with `call` so control returns to the wrapper and `donePath` is still written, regardless of the command's own exit status.
 
 **Independent Test**: Fresh clone, `cd tools/kobixel-gemini-web && npm install && npm install -g .`, install the `.aseprite-extension`, leave "External command" at its default, run a generation - it works without editing the field. Then uninstall the global link (`npm uninstall -g kobixel-gemini-web`) and run again - the failure dialog shows the install instruction within one poll tick, not after the 3-minute timeout.
 
@@ -110,6 +127,8 @@ instalar o kobixel-gemini-web antes de adicionar a extensão").
 - WHEN a user re-runs `npm install -g .` after already having it installed THEN npm SHALL overwrite the existing global link cleanly (native npm behavior, not custom logic).
 - WHEN the fallback log line fires AND the shell also printed its own native "command not found" text THEN both SHALL appear in the log, native error first - not deduplicated (acceptable per Assumptions).
 - IF `edit.mjs` is invoked directly (not through the global bin) via a plain absolute path with no symlink in it THEN the entry guard SHALL still recognize direct execution exactly as before (the `realpathSync` fix must not regress the already-documented `node "path/to/edit.mjs" ...` alternative).
+- IF a user's own custom "External command" (not the shipped default) already resolves to a plain `.exe` THEN adding `call` in front of it SHALL NOT change its behavior (documented cmd.exe no-op) - existing user configurations must not regress.
+- WHEN the external command succeeds (exit 0) THEN the failure hint SHALL NOT be appended to the log - only a non-zero exit triggers it.
 
 ---
 
@@ -125,12 +144,13 @@ instalar o kobixel-gemini-web antes de adicionar a extensão").
 | NPMCLI-06 | P2 | Implement | Pending |
 | NPMCLI-07 | P2 | Implement | Pending |
 | NPMCLI-08 | P1 | Implement | Implementing (T1 done, pending feature-level Verifier) |
+| NPMCLI-09 | P1 | Implement | Pending |
 
 **ID format:** `NPMCLI-[NUMBER]`
 
 **Status values:** Pending → Implementing → Verified
 
-**Coverage:** 8 total, 8 mapped to tasks (see tasks.md), 0 unmapped
+**Coverage:** 9 total, 9 mapped to tasks (see tasks.md), 0 unmapped
 
 ---
 

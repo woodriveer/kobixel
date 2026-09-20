@@ -10,7 +10,7 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'node "C:\\path\\to\\tools\\kobixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
+  command     = 'kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
   source      = "sprite",     -- "sprite" (flattened frame) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 8,            -- upscale factor for what is SENT
@@ -124,12 +124,33 @@ local function runCommandAsync(cmd, logPath, donePath, stamp)
     -- and any accented character in the CLI's output becomes an invalid
     -- byte, truncating the text shown in app.alert.
     f:write("chcp 65001 >nul\r\n")
-    f:write(cmd .. ' > "' .. logPath .. '" 2>&1\r\n')
+    -- "call" is mandatory here: if the External command resolves to a .bat
+    -- or .cmd (e.g. an npm-installed global bin's shim), invoking it bare
+    -- transfers control into that script and NEVER returns to this wrapper
+    -- — the lines below (the not-found hint, writing donePath) would
+    -- silently never run, and the plugin would poll until MAX_WAIT_SECONDS
+    -- on every single run. "call" is a no-op for a plain .exe, so it's safe
+    -- unconditionally.
+    f:write('call ' .. cmd .. ' > "' .. logPath .. '" 2>&1\r\n')
+    -- cmd.exe's own ERRORLEVEL 9009 ("command not found") only appears on a
+    -- BARE invocation — "call" itself collapses it down to a generic 1,
+    -- indistinguishable from the CLI's own failure exit codes. So this
+    -- can't precisely detect "not installed" on Windows; instead it appends
+    -- a hint on ANY failure, worded as a suggestion rather than a
+    -- diagnosis, so it stays honest when the real cause is something else
+    -- (e.g. Chrome's debug port not open).
+    f:write('if errorlevel 1 echo [kobixel] The command failed. If kobixel-gemini-web is not installed yet, run: npm install -g . inside tools/kobixel-gemini-web >> "' .. logPath .. '"\r\n')
     f:write('echo %ERRORLEVEL% > "' .. donePath .. '"\r\n')
   else
     f:write("#!/bin/sh\n")
     f:write(cmd .. ' > "' .. logPath .. '" 2>&1\n')
-    f:write('echo $? > "' .. donePath .. '"\n')
+    f:write("kobixel_exit=$?\n")
+    -- Same any-failure hint as the Windows branch above, kept symmetric
+    -- rather than using POSIX's more precise exit code 127 ("command not
+    -- found") — see the comment on the Windows branch for why 9009 isn't
+    -- reliable there, which is the reason this stays uniform across OSes.
+    f:write('if [ "$kobixel_exit" -ne 0 ]; then echo "[kobixel] The command failed. If kobixel-gemini-web is not installed yet, run: npm install -g . inside tools/kobixel-gemini-web" >> "' .. logPath .. '"; fi\n')
+    f:write('echo "$kobixel_exit" > "' .. donePath .. '"\n')
   end
   f:close()
 

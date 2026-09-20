@@ -100,28 +100,35 @@ to `import.meta.url`.
 
 ---
 
-### T2: Default the External command to the global bin, with an install-hint fallback
+### T2: Default the External command to the global bin, with a `call`-safe failure hint
 
-**What**: Change `DEFAULTS.command` in `kobixel.lua` to the OS-independent `kobixel-gemini-web ...` invocation, with a `|| echo` fallback that names the fix when the bin isn't installed.
+**What**: Change `DEFAULTS.command` in `kobixel.lua` to the plain OS-independent `kobixel-gemini-web ...` invocation (no shell logic embedded in it), and make the wrapper generator in `runCommandAsync` (a) invoke the Windows command with `call` so control returns when it's a `.bat`/`.cmd`, and (b) append a failure hint to the log on any non-zero exit.
 **Where**: `kobixel.lua`
 **Depends on**: T1
-**Reuses**: existing `donePath`/`onFailure` polling mechanism (kobixel.lua:543-553) - no changes needed there, the fallback text just rides the existing log-tail-into-alert path.
-**Requirement**: NPMCLI-02, NPMCLI-03, NPMCLI-04
+**Reuses**: existing `donePath`/`onFailure` polling mechanism (kobixel.lua:543-553) - no changes needed there, the hint text just rides the existing log-tail-into-alert path.
+**Requirement**: NPMCLI-02, NPMCLI-03, NPMCLI-04, NPMCLI-09
+
+**Discovery (logged in spec.md, two parts):**
+1. A `|| echo` embedded directly in `DEFAULTS.command` was the original plan, but testing showed the wrapper's own trailing `> "logPath" 2>&1` (appended after `cmd` by `runCommandAsync`) binds only to the right-hand side of an unparenthesized `||` in cmd.exe - on the *success* path this silently dropped ALL log capture (no log file at all), which would have broken the existing progress dialog for every run, not just the failure case. Moved the hint logic into `runCommandAsync` itself instead, after the wrapper's own redirection is already in place.
+2. While testing that, found `kobixel.lua`'s Windows wrapper invoked the External command bare (no `call`) - harmless for a `.exe`, but for a `.bat`/`.cmd` (exactly what npm's global bin shim is) this transfers control permanently and the wrapper's remaining lines (writing `donePath`) never run - every run would silently poll to the 3-minute timeout. Fixed with `call`. This in turn collapses cmd.exe's specific "not found" errorlevel (9009) to a generic 1, so the hint fires on any failure rather than specifically "not installed" (see spec.md's "Failure-hint precision" assumption) - kept symmetric with the POSIX `sh` branch rather than giving Windows and Linux/macOS different precision.
 
 **Tools**:
 - MCP: NONE
 - Skill: NONE
 
 **Done when**:
-- [ ] `DEFAULTS.command` = `kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" || echo "[kobixel-gemini-web] Falha ao executar. Instale antes com: cd tools/kobixel-gemini-web && npm install -g ."`
-- [ ] Manually confirmed: with the bin installed, a real generation via the Aseprite dialog still works end to end using the untouched default field
-- [ ] Manually confirmed: with the bin uninstalled (`npm uninstall -g kobixel-gemini-web`), running a generation shows the install-hint text inside the Kobixel failure alert within one poll tick (`POLL_INTERVAL`), not after the 3-minute timeout
-- [ ] `.bat` wrapper (Windows) and `.sh` wrapper (Linux/macOS, per `isWindows()` branch at kobixel.lua:113-133) both accept `||` syntax unmodified - no OS branching added to `DEFAULTS.command` itself
+- [ ] `DEFAULTS.command` = `kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"` (no embedded shell logic)
+- [ ] Windows branch of `runCommandAsync` prefixes the command with `call` before its own redirection
+- [ ] Windows branch appends `if errorlevel 1 echo [kobixel] The command failed. If kobixel-gemini-web is not installed yet, run: npm install -g . inside tools/kobixel-gemini-web >> "<logPath>"` after the command line
+- [ ] POSIX branch captures the exit code and appends the equivalent hint when it's non-zero
+- [ ] Manually confirmed (simulated wrapper, three cases): missing binary → native error + hint, `done`=1; real binary failing for an unrelated reason (Chrome debug port closed) → real error + hint (accepted imprecision), `done`=1; success stand-in → real output only, no hint, `done`=0
+- [ ] Manually confirmed: a plain `.exe`-based command prefixed with `call` behaves identically to before (no regression for existing user configurations)
+- [x] Wrapper simulations reproduce byte-for-byte what `kobixel.lua`'s `f:write(...)` calls generate for this command - real end-to-end verification through the Aseprite dialog itself is deferred to the user's manual pass (per `CLAUDE.md`: no automated Lua test runner exists in this repo; manual exercise in Aseprite is the documented verification method), to be done together with the upcoming Ubuntu/Linux validation session
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kobixel): default external command to global bin with install-hint fallback`
+**Commit**: `fix(kobixel): call External command safely and hint on failure`
 
 ---
 
