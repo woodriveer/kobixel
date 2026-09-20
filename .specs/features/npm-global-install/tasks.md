@@ -145,10 +145,10 @@ to `import.meta.url`.
 - Skill: NONE
 
 **Done when**:
-- [ ] The `tools/kobixel-gemini-web` npm setup (`npm install` then `npm install -g .`) appears before the "Installation" section that builds/installs the `.aseprite-extension`
-- [ ] The "Working example" command shown matches T2's new default exactly
-- [ ] The direct `node "path/to/edit.mjs" ...` form remains documented as an alternative for contributors who don't want a global install
-- [ ] No leftover reference to the old `node "C:\path\to\..."` default as *the* recommended command
+- [x] The `tools/kobixel-gemini-web` npm setup (`npm install` then `npm install -g .`) appears before the "Installation" section that builds/installs the `.aseprite-extension` (new "Install the CLI first" section)
+- [x] The command shown in "The CLI" matches T2's new default exactly (`kobixel-gemini-web --in ...`, no path)
+- [x] The direct `node "path/to/edit.mjs" ...` form remains documented as an alternative for contributors who don't want a global install
+- [x] No leftover reference to the old `node "C:\path\to\..."` default as *the* recommended command (it's now explicitly the opt-out alternative)
 
 **Tests**: none
 **Gate**: build

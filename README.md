@@ -64,6 +64,48 @@ Aseprite (magic wand) when you need transparency.
   paths) are Windows-only for now. If you try it on Linux/macOS, please
   open an issue with what did or didn't work.
 
+## Install the CLI first
+
+Install `tools/kobixel-gemini-web` **before** installing the Aseprite
+extension below — the extension's default "External command" expects it
+to already be on your PATH.
+
+```sh
+cd tools/kobixel-gemini-web
+npm install
+npm install -g .
+```
+
+The second command registers a global `kobixel-gemini-web` command via
+npm's own `bin` mechanism. This works the same way on Windows, macOS, and
+Linux — no path to edit afterward — and is exactly what the extension's
+default "External command" calls (see "The CLI" below). If you'd rather
+not install it globally (e.g. while actively editing `edit.mjs`), you can
+skip `npm install -g .` and use the direct `node "path/to/edit.mjs" ...`
+form documented in "The CLI" instead.
+
+Then, before each usage session (or just leave the window open), open
+Chrome yourself with the debug port:
+
+```powershell
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+```
+
+The first time, log in normally in that window. The session is saved in
+that dedicated profile (separate from your everyday Chrome), so next time
+it opens already logged in — but **the window needs to stay open** while
+you use the plugin; the script connects to it, it doesn't open its own.
+
+Why it isn't simpler than this: Google blocks Google-account sign-in from
+a browser that automation itself opened ("This browser or app may not be
+secure"), even with a real Chrome binary — it's a defense against
+automated logins, not a bug. The way around it is to never let the
+automation log in: you log in by hand in a Chrome window you opened, and
+the script only **connects** to that already-authenticated instance.
+
+If the script can't connect (`Could not connect to Chrome's debug port`),
+it's because that window isn't open or was closed — open it again.
+
 ## Installation
 
 1. Build the `.aseprite-extension` with the release script:
@@ -120,61 +162,35 @@ The template is editable in the dialog and accepts these placeholders:
 | `{prompt}` | your prompt, already escaped |
 | `{width}` / `{height}` | dimensions of the sent PNG |
 
-Working example (the ready-made script from this repo — see setup below):
+Default (after following "Install the CLI first" above):
+
+```sh
+kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+```
+
+If you'd rather not install the CLI globally (e.g. while actively editing
+`edit.mjs`), point the field at the script directly instead:
 
 ```sh
 node "C:\path\to\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
 ```
 
-`--width`/`--height` are optional: `edit.mjs` uses them to tell Gemini the
-real size of the PNG sent (instead of a fixed value), and it keeps working
-normally if you omit both.
+`--width`/`--height` are optional in both forms: `edit.mjs` uses them to
+tell Gemini the real size of the PNG sent (instead of a fixed value), and
+it keeps working normally if you omit both.
 
-Before pasting the command into the plugin's field, **test the script
-directly in a terminal** with any PNG — that way errors show up in the
-terminal instead of in a truncated Aseprite dialog.
-
-### `tools/kobixel-gemini-web/` (recommended)
-
-Drives a Chrome window **you open and log into yourself**, via Chrome's
-debug port (`--remote-debugging-port`) — uses no API key at all, just the
-image quota from your Gemini Pro/Ultra subscription through the website.
-
-Why it isn't simpler than this: Google blocks Google-account sign-in from a
-browser that automation itself opened ("This browser or app may not be
-secure"), even with a real Chrome binary — it's a defense against
-automated logins, not a bug. The way around it is to never let the
-automation log in: you log in by hand in a Chrome window you opened, and
-the script only **connects** to that already-authenticated instance.
-
-**Setup (once):**
-
-```sh
-cd tools/kobixel-gemini-web
-npm install
-```
-
-**Before each usage session** (or just leave this window always open), open
-Chrome yourself with the debug port:
-
-```powershell
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
-```
-
-The first time, log in normally in that window. The session is saved in
-that dedicated profile (separate from your everyday Chrome), so next time
-it opens already logged in — but **the window needs to stay open** while
-you use the plugin; the script connects to it, it doesn't open its own.
-
-If the script can't connect (`Could not connect to Chrome's debug port`),
-it's because that window isn't open or was closed — open it again.
+Before pasting a command into the plugin's field, **test it directly in a
+terminal** with any PNG — that way errors show up in the terminal instead
+of in a truncated Aseprite dialog.
 
 ### PATH
 
 `os.execute` inherits Aseprite's own process environment. If you opened
 Aseprite via a graphical launcher or Steam, `PATH` probably lacks things
-like `~/.local/bin` or nvm's node. **Use an absolute path to the binary**
-in the template if you get "command not found".
+like `~/.local/bin`, nvm's node, or npm's global bin directory. **Use an
+absolute path to the binary** in the template if you get "command not
+found" (for the default form, that means finding where `npm install -g`
+put `kobixel-gemini-web` — run `npm config get prefix` to locate it).
 
 ## Proximity factor
 
