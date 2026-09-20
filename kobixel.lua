@@ -13,7 +13,7 @@ local DEFAULTS = {
   command     = 'kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
   source      = "sprite",     -- "sprite" (flattened frame) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
-  upscale     = 8,            -- upscale factor for what is SENT
+  upscale     = 4,            -- upscale factor for what is SENT
   resample    = "average",    -- "average" | "point"
   snapPalette = true,
   alphaCut    = 128,
@@ -143,6 +143,26 @@ local function runCommandAsync(cmd, logPath, donePath, stamp)
     f:write('echo %ERRORLEVEL% > "' .. donePath .. '"\r\n')
   else
     f:write("#!/bin/sh\n")
+    -- Aseprite's own process env is whatever the GUI launcher/desktop icon
+    -- gave it, which usually excludes PATH entries that Node version
+    -- managers add — those only edit shell rc files (~/.bashrc, ~/.zshrc),
+    -- which GUI processes never source. Rather than trying to source rc
+    -- files ourselves (tried before: fails inside sandboxed launchers like
+    -- Steam's Linux Runtime container, where the login shell itself isn't
+    -- visible - see README's "PATH" section), just append each manager's
+    -- own known install directory straight to PATH here. This runs inside
+    -- the sh script itself, so it works even in that sandbox (only $HOME
+    -- is shared with it, which is all every one of these paths needs). A
+    -- glob that matches nothing (e.g. a manager that isn't installed)
+    -- passes through unexpanded and fails the -d check harmlessly.
+    f:write('for d in "$HOME"/.nvm/versions/node/*/bin ' ..
+      '"$HOME"/.local/share/fnm/node-versions/*/installation/bin ' ..
+      '"$HOME"/.volta/bin "$HOME"/.asdf/shims "$HOME"/.nodenv/shims ' ..
+      '"$HOME"/.npm-global/bin "$HOME"/.local/bin ' ..
+      '/usr/local/bin /opt/homebrew/bin; do\n')
+    f:write('  [ -d "$d" ] && PATH="$PATH:$d"\n')
+    f:write('done\n')
+    f:write('export PATH\n')
     f:write(cmd .. ' > "' .. logPath .. '" 2>&1\n')
     f:write("kobixel_exit=$?\n")
     -- Same any-failure hint as the Windows branch above, kept symmetric

@@ -58,11 +58,12 @@ Aseprite (magic wand) when you need transparency.
   AI Pro/Ultra subscription raises that quota substantially — see "Current
   status" above for why this project rides the web quota instead of paying
   per image through the API.
-- **Operating system**: developed and tested on **Windows**. `kobixel.lua`
-  has a Linux/macOS code path (writes a `.sh` wrapper instead of `.bat`),
-  but the setup commands below (opening Chrome with a debug port, example
-  paths) are Windows-only for now. If you try it on Linux/macOS, please
-  open an issue with what did or didn't work.
+- **Operating system**: developed and tested primarily on **Windows**;
+  `kobixel.lua` has a Linux/macOS code path too (writes a `.sh` wrapper
+  instead of `.bat`), and the Chrome-launch command below is documented
+  for all three. It's had less real-world testing on Linux/macOS, though —
+  if you hit something that doesn't work there, please open an issue with
+  what did or didn't work.
 
 ## Install the CLI first
 
@@ -89,6 +90,16 @@ Chrome yourself with the debug port:
 
 ```powershell
 "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+```
+
+```sh
+# Linux
+google-chrome --user-data-dir="$HOME/.kobixel/chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+```
+
+```sh
+# macOS
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$HOME/.kobixel/chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
 ```
 
 The first time, log in normally in that window. The session is saved in
@@ -187,10 +198,28 @@ of in a truncated Aseprite dialog.
 
 `os.execute` inherits Aseprite's own process environment. If you opened
 Aseprite via a graphical launcher or Steam, `PATH` probably lacks things
-like `~/.local/bin`, nvm's node, or npm's global bin directory. **Use an
-absolute path to the binary** in the template if you get "command not
-found" (for the default form, that means finding where `npm install -g`
-put `kobixel-gemini-web` — run `npm config get prefix` to locate it).
+like `~/.local/bin`, nvm's node, or npm's global bin directory.
+
+On Linux/macOS, the generated wrapper script already checks for the
+install directory of every common Node version manager (nvm, fnm, volta,
+asdf, nodenv) plus `~/.npm-global/bin`, `~/.local/bin`, `/usr/local/bin`,
+and `/opt/homebrew/bin`, and adds whichever of those exist to `PATH`
+before running the command — so the default `kobixel-gemini-web` normally
+resolves with no extra setup, even from a GUI-launched Aseprite, and even
+inside a sandboxed launcher (see the Steam note below, since that check
+runs as plain shell script, not by relying on your login shell).
+
+If you still get "command not found" (e.g. a manager not in that list, or
+a custom global-prefix), **use an absolute path to the binary** in the
+template instead (for the default form, that means finding where
+`npm install -g` put `kobixel-gemini-web` — run `npm config get prefix` to
+locate it).
+
+If Aseprite was installed through Steam, it runs inside the **Steam Linux
+Runtime container** (`pressure-vessel`), which has its own `/usr` — your
+login shell and anything else under the host's `/usr` are invisible to it,
+only your home directory is shared. An absolute path under `$HOME` still
+works from inside it.
 
 ## Proximity factor
 

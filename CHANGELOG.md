@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-20
+
+### Changed
+
+- Default "Upscale before sending" factor lowered from 8x to 4x. At the
+  old default, a 64x64 sprite was sent as a 512x512 PNG, and the
+  generated prompt's "Use canvas size as 512x512 pixels" instruction
+  looked disproportionate relative to the actual sprite size. Existing
+  saved preferences are unaffected — this only changes the value new
+  installs (or a "Reset to defaults") start with.
+
+### Added
+
+- README (English and pt-BR): Linux and macOS commands for opening Chrome
+  with the remote-debugging port, alongside the existing Windows one — the
+  "Install the CLI first" section previously only documented the Windows
+  form.
+
+## [0.2.4] - 2026-09-20
+
+### Fixed
+
+- Linux/macOS: the generated wrapper script now appends the known install
+  directories of common Node version managers (nvm, fnm, volta, asdf,
+  nodenv) plus `~/.npm-global/bin`, `~/.local/bin`, `/usr/local/bin`, and
+  `/opt/homebrew/bin` to `PATH` before running the External command, if
+  they exist. Previously the default `kobixel-gemini-web` command only
+  resolved if it happened to already be on Aseprite's inherited `PATH`,
+  which excludes anything a version manager adds via a shell rc file
+  (Aseprite launched from a GUI icon never sources those) — most users
+  installing via the documented `npm install -g .` would otherwise always
+  need to hand-edit the External command field to an absolute path. This
+  runs as plain `[ -d ... ]` checks inside the wrapper's own POSIX script,
+  so unlike the 0.2.3 attempt (reverted below) it also works when Aseprite
+  itself runs inside a sandboxed launcher (e.g. Steam's Linux Runtime
+  container) where the login shell isn't reachable but `$HOME` still is.
+
+### Changed
+
+- README (English and pt-BR): "PATH" troubleshooting section now also
+  covers Aseprite installed via Steam, which runs inside the Steam Linux
+  Runtime container (`pressure-vessel`) — its own `/usr` hides the login
+  shell and anything else under the host's `/usr`, but `$HOME` (and so an
+  absolute path under it, e.g. nvm's install path) is still reachable.
+
+### Reverted
+
+- The 0.2.3 attempt to auto-resolve `PATH` by running the External command
+  through `"$SHELL" -ilc` (sourcing the login shell's rc file first) turned
+  out unreliable in sandboxed launchers: under the Steam Linux Runtime
+  container, `$SHELL` itself (e.g. `/usr/bin/zsh`) isn't visible from
+  inside the sandbox, which failed with a more confusing "command not
+  found" than the original problem. Back to running the External command
+  directly; use an absolute path if the bare command isn't found (see the
+  README's "PATH" section).
+
+## [0.2.3] - 2026-09-20
+
+### Fixed (later reverted in 0.2.4, see above)
+
+- Linux/macOS: the External command ran through `$SHELL -ilc` instead of
+  directly, so it would source the user's shell rc file (`~/.bashrc`,
+  `~/.zshrc`, ...) before running — the same place tools like nvm/pyenv add
+  themselves to `PATH`.
+
 ## [0.2.2] - 2026-09-20
 
 ### Added

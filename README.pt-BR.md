@@ -55,12 +55,12 @@ mágica) quando precisar de transparência.
   Google ajusta com frequência); uma assinatura Google AI Pro/Ultra
   aumenta bastante essa cota — ver "Estado atual" acima pra entender por
   que este projeto usa a cota do site em vez de pagar por imagem via API.
-- **Sistema operacional**: desenvolvido e testado no **Windows**. O
-  `kobixel.lua` tem um caminho de código pra Linux/macOS (escreve um
-  wrapper `.sh` em vez de `.bat`), mas os comandos de setup abaixo (abrir
-  o Chrome com porta de debug, caminhos de exemplo) são só pra Windows por
-  enquanto. Se testar em Linux/macOS, abra uma issue contando o que
-  funcionou ou não.
+- **Sistema operacional**: desenvolvido e testado principalmente no
+  **Windows**; o `kobixel.lua` também tem um caminho de código pra
+  Linux/macOS (escreve um wrapper `.sh` em vez de `.bat`), e o comando de
+  abrir o Chrome abaixo está documentado pros três. Teve menos teste real
+  em Linux/macOS, porém — se algo não funcionar aí, abra uma issue contando
+  o que funcionou ou não.
 
 ## Instale o CLI primeiro
 
@@ -87,6 +87,16 @@ o Chrome você mesmo com a porta de debug:
 
 ```powershell
 "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="%USERPROFILE%\.kobixel\chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+```
+
+```sh
+# Linux
+google-chrome --user-data-dir="$HOME/.kobixel/chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
+```
+
+```sh
+# macOS
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$HOME/.kobixel/chrome-profile" --remote-debugging-port=9222 https://gemini.google.com/app
 ```
 
 Na primeira vez, faça login normalmente nessa janela. A sessão fica salva
@@ -185,10 +195,29 @@ de num diálogo truncado do Aseprite.
 
 `os.execute` herda o ambiente do processo do Aseprite. Se você abriu o
 Aseprite pelo launcher gráfico ou pela Steam, o `PATH` provavelmente não
-tem `~/.local/bin`, o node do nvm, nem a pasta global de bin do npm. **Use
-caminho absoluto do binário** no template se der "command not found" (na
-forma padrão, isso significa achar onde o `npm install -g` colocou o
-`kobixel-gemini-web` — rode `npm config get prefix` pra localizar).
+tem `~/.local/bin`, o node do nvm, nem a pasta global de bin do npm.
+
+No Linux/macOS, o script wrapper gerado já procura a pasta de instalação
+de todo gerenciador de versão do Node mais comum (nvm, fnm, volta, asdf,
+nodenv), além de `~/.npm-global/bin`, `~/.local/bin`, `/usr/local/bin` e
+`/opt/homebrew/bin`, e adiciona ao `PATH` qualquer um deles que exista
+antes de rodar o comando — então o `kobixel-gemini-web` padrão normalmente
+já resolve sem configuração extra, mesmo com o Aseprite aberto pelo
+launcher gráfico, e até dentro de um launcher em sandbox (veja a nota da
+Steam abaixo — essa checagem roda como script puro, sem depender do seu
+shell de login).
+
+Se mesmo assim der "command not found" (ex.: um gerenciador fora dessa
+lista, ou um prefixo global customizado), **use caminho absoluto do
+binário** no template (na forma padrão, isso significa achar onde o
+`npm install -g` colocou o `kobixel-gemini-web` — rode
+`npm config get prefix` pra localizar).
+
+Se o Aseprite foi instalado pela Steam, ele roda dentro do **Steam Linux
+Runtime** (`pressure-vessel`), um contêiner com seu próprio `/usr` — seu
+shell de login e qualquer outra coisa do `/usr` do sistema ficam
+invisíveis pra ele; só a sua pasta pessoal (`$HOME`) é compartilhada. Um
+caminho absoluto dentro de `$HOME` continua funcionando de dentro dele.
 
 ## Fator de proximidade
 
