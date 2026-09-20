@@ -22,7 +22,7 @@
 //   node edit.mjs --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
 
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -211,6 +211,12 @@ async function main() {
 // Only run the CLI when this file is executed directly (`node edit.mjs ...`),
 // not when it's imported (e.g. by edit.test.mjs) — otherwise importing it to
 // reach buildPixelArtInstructions would try to connect to Chrome.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+//
+// realpathSync matters here: `npm install -g .` on a local path symlinks the
+// package instead of copying it, so the generated bin shim invokes this file
+// through a symlinked path. Node's ESM loader resolves import.meta.url past
+// that symlink, but process.argv[1] keeps the literal (unresolved) path —
+// without realpathSync the two never match and main() silently never runs.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   main();
 }

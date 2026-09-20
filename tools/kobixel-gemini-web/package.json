@@ -4,6 +4,9 @@
   "type": "module",
   "version": "1.0.0",
   "description": "Drives gemini.google.com with Playwright to edit pixel art via Nano Banana, reusing a logged-in Google session instead of an API key.",
+  "bin": {
+    "kobixel-gemini-web": "./edit.mjs"
+  },
   "dependencies": {
     "playwright": "^1.48.0"
   }
