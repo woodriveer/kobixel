@@ -41,6 +41,27 @@ canvas). Pedir "fundo transparente" no prompt só resulta em fundo
 branco/quadriculado opaco. Remova o fundo manualmente no Aseprite (varinha
 mágica) quando precisar de transparência.
 
+## Requisitos
+
+- **Aseprite 1.3+** — o script usa `Image:pixels()`, `app.fs` e
+  `app.transaction`.
+- **Node.js 18+** e npm — pra instalar e rodar o backend recomendado
+  `tools/kobixel-gemini-web` (Playwright).
+- **Google Chrome** instalado — o backend recomendado se conecta numa
+  janela real do Chrome pela porta de debug; Chromium ou outro navegador
+  não vai ter o seu login do Google já feito.
+- **Uma conta Google com geração de imagem no Gemini.** O Nano Banana
+  funciona na camada gratuita também (com uma cota diária baixa, que o
+  Google ajusta com frequência); uma assinatura Google AI Pro/Ultra
+  aumenta bastante essa cota — ver "Estado atual" acima pra entender por
+  que este projeto usa a cota do site em vez de pagar por imagem via API.
+- **Sistema operacional**: desenvolvido e testado no **Windows**. O
+  `kobixel.lua` tem um caminho de código pra Linux/macOS (escreve um
+  wrapper `.sh` em vez de `.bat`), mas os comandos de setup abaixo (abrir
+  o Chrome com porta de debug, caminhos de exemplo) são só pra Windows por
+  enquanto. Se testar em Linux/macOS, abra uma issue contando o que
+  funcionou ou não.
+
 ## Instalação
 
 1. Gere o `.aseprite-extension` com o script de release:

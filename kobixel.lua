@@ -10,7 +10,7 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'node "D:\\Developer\\kobixel\\tools\\kobixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
+  command     = 'node "C:\\path\\to\\tools\\kobixel-gemini-web\\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
   source      = "sprite",     -- "sprite" (flattened frame) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 8,            -- upscale factor for what is SENT

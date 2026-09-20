@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-20
+
+### Added
+
+- "Requirements" section in both READMEs, consolidating what was previously
+  scattered across the doc (Aseprite version, Node.js, Google Chrome, a
+  Gemini-capable Google account) and clarifying that Nano Banana image
+  generation also works on the free tier (lower quota) rather than
+  requiring a paid Gemini Pro/Ultra subscription. Also notes the project is
+  Windows-tested only, though `kobixel.lua` already has a Linux/macOS code
+  path.
+
+### Fixed
+
+- `DEFAULTS.command` in `kobixel.lua` shipped the author's own local dev
+  path (`D:\Developer\kobixel\...`) as the default "External command"
+  value. Replaced with the same generic placeholder already used in the
+  README examples (`C:\path\to\tools\kobixel-gemini-web\edit.mjs`).
+
 ## [0.2.0] - 2026-09-20
 
 ### Changed
@@ -73,7 +92,8 @@ extension is shared with the wider community.
   external backend directory (`tools/gemini-web-edit` →
   `tools/repixel-gemini-web`).
 
-[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/woodriveer/kobixel/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/woodriveer/kobixel/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/woodriveer/kobixel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/woodriveer/kobixel/releases/tag/v0.1.0
