@@ -170,8 +170,8 @@ to `import.meta.url`.
 - Skill: NONE
 
 **Done when**:
-- [ ] Same structural changes as T3, in Portuguese
-- [ ] Both READMEs present the same install order and the same example command (language aside)
+- [x] Same structural changes as T3, in Portuguese
+- [x] Both READMEs present the same install order and the same example command (language aside)
 
 **Tests**: none
 **Gate**: build
