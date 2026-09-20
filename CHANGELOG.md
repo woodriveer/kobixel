@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-20
+
+### Added
+
+- `tools/kobixel-gemini-web/package.json` now declares a `bin` field, so
+  `npm install -g .` registers a global `kobixel-gemini-web` command. The
+  Aseprite extension's default "External command" is now the single,
+  OS-independent `kobixel-gemini-web --in ... --out ... --prompt ...`
+  (previously an absolute path to `edit.mjs` that had to be hand-edited per
+  machine).
+- README (English and pt-BR): new "Install the CLI first" section ordering
+  the npm install steps before the Aseprite extension install steps, and
+  the direct `node "path/to/edit.mjs" ...` form is now documented as an
+  explicit opt-out alternative to the global install.
+
+### Fixed
+
+- `edit.mjs`'s direct-execution entry guard compared `import.meta.url`
+  against an unresolved `process.argv[1]`. `npm install -g .` on a local
+  path symlinks the package rather than copying it, and the generated bin
+  shim invokes the file through that symlink — the guard silently
+  evaluated false, so `main()` never ran (no output, exit 0). Fixed by
+  resolving `process.argv[1]` with `fs.realpathSync()` before the
+  comparison.
+- `kobixel.lua`'s Windows wrapper invoked the External command bare (no
+  `call`). Harmless for a plain `.exe`, but a `.bat`/`.cmd` target (any npm
+  global bin, including the new default) never returns control to the
+  wrapper — the "done" sentinel file was never written, so every run
+  silently polled to the 3-minute timeout regardless of success or
+  failure. Fixed by invoking with `call`, a documented no-op for `.exe`
+  targets, so existing custom "External command" configurations are
+  unaffected.
+- The wrapper now appends a hint to the log when the External command
+  exits non-zero ("if kobixel-gemini-web is not installed yet, run: npm
+  install -g ..."), surfaced through the existing failure alert. Windows
+  can't distinguish "command not found" from the CLI's own failures once
+  `call` is used (it collapses cmd.exe's specific 9009 errorlevel to a
+  generic 1), so the hint is worded as a suggestion rather than a
+  diagnosis, and fires the same way on both Windows and POSIX shells.
+
 ## [0.2.1] - 2026-09-20
 
 ### Added
@@ -92,7 +132,8 @@ extension is shared with the wider community.
   external backend directory (`tools/gemini-web-edit` →
   `tools/repixel-gemini-web`).
 
-[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/woodriveer/kobixel/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/woodriveer/kobixel/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/woodriveer/kobixel/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/woodriveer/kobixel/compare/v0.1.0...v0.1.1

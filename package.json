@@ -2,7 +2,7 @@
   "name": "kobixel",
   "displayName": "Kobixel",
   "description": "Sends the current sprite + a prompt to a local image-generation CLI and brings the result back into Aseprite.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": {
     "name": "Yan Tapajós"
   },

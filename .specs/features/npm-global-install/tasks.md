@@ -193,10 +193,13 @@ to `import.meta.url`.
 - Skill: NONE
 
 **Done when**:
-- [ ] CHANGELOG `[Unreleased]` gets an entry describing the npm-bin default and doc reorder, then is moved into a new version heading as part of this bump (per `CLAUDE.md`)
-- [ ] New version number does not collide with any existing CHANGELOG heading (learned from the 0.1.1 collision earlier this session - check the full heading list, not just the latest one, before picking the number)
-- [ ] `.\release.ps1` run (or the manual `Compress-Archive` steps in the README) produces the new `.aseprite-extension`, and the old one is removed
-- [ ] Root `package.json` `version` matches the new CHANGELOG heading and the artifact filename
+- [x] CHANGELOG `[Unreleased]` gets an entry describing the npm-bin default, the two mid-implementation fixes (symlink guard, `call`), and the doc reorder, moved into `[0.2.2]`
+- [x] New version number (0.2.2) checked against the full heading list (0.2.1, 0.2.0, 0.1.1, 0.1.0) - no collision
+- [x] Manual `Compress-Archive` steps (matching the README) produce `kobixel-0.2.2.aseprite-extension`; the old `kobixel-0.2.1.aseprite-extension` removed (`.\release.ps1` was not used this time since it would have re-bumped an already-hand-set version - see note below)
+- [x] Root `package.json` `version` (0.2.2) matches the CHANGELOG heading and the artifact filename
+- [x] `package.json` has no BOM (verified: first bytes are `7b 0a` = `{\n`, not `EF BB BF`), per `CLAUDE.md`'s constraint
+
+**Note**: `release.ps1` always bumps relative to the *current* `package.json` version. Since this session had already set `version` to `0.2.2` by hand while resolving the CHANGELOG heading collision, running the script would have bumped it again to `0.2.3` - so the release was built manually instead, per the README's documented fallback.
 
 **Tests**: none
 **Gate**: build
