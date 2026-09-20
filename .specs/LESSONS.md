@@ -30,6 +30,14 @@ Hand-maintained fallback (no Python interpreter available in this environment to
 - **Source**: `tasks.md` Gate Check Commands table, `CLAUDE.md:25,55` — `node --test tools/gemini-web-edit`
 - **Lesson**: Before documenting a `node --test <directory>` gate command, verify it actually runs on Windows Node — directory-style test-runner arguments can fail there even on trivial, unrelated directories; cite the test file path or an explicit glob instead.
 
+### L-004
+
+- **Status**: candidate (1/2 features)
+- **Signal**: `surviving_mutant`
+- **Feature**: npm-global-install
+- **Source**: `tools/kobixel-gemini-web/edit.mjs:220` (mutation: reverted `realpathSync` fix in the direct-execution guard), `tools/kobixel-gemini-web/edit.test.mjs` (4/4 still pass against the mutant)
+- **Lesson**: A module's direct-execution guard (an `import.meta.url`/`process.argv[1]` entry-point check) is invisible to unit tests that only import the module's exported functions — declare it explicitly as an uncovered layer in the Test Coverage Matrix rather than assuming the module's existing suite exercises it, and prefer a stubbed-argv unit test over relying solely on manual verification when the guard's logic is non-trivial (e.g. symlink resolution).
+
 ---
 
-*(Self-check: `validation.md` for prompt-context-audit-i18n had signal — one surviving mutant, one spec-precision gap, and one gate-command failure — so lessons were recorded rather than silently skipped.)*
+*(Self-check: `validation.md` for prompt-context-audit-i18n had signal — one surviving mutant, one spec-precision gap, and one gate-command failure — so lessons were recorded rather than silently skipped. `validation.md` for npm-global-install had one surviving mutant (entry-guard fix, `node --test` blind to it) — recorded as L-004 rather than silently skipped.)*

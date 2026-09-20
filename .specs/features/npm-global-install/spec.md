@@ -136,21 +136,23 @@ instalar o kobixel-gemini-web antes de adicionar a extensão").
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| NPMCLI-01 | P1 | Implement | Implementing (T1 done, pending feature-level Verifier) |
-| NPMCLI-02 | P1 | Implement | Pending |
-| NPMCLI-03 | P1 | Implement | Pending |
-| NPMCLI-04 | P1 | Implement | Pending |
-| NPMCLI-05 | P2 | Implement | Pending |
-| NPMCLI-06 | P2 | Implement | Pending |
-| NPMCLI-07 | P2 | Implement | Pending |
-| NPMCLI-08 | P1 | Implement | Implementing (T1 done, pending feature-level Verifier) |
-| NPMCLI-09 | P1 | Implement | Pending |
+| NPMCLI-01 | P1 | Implement | ✅ Verified |
+| NPMCLI-02 | P1 | Implement | ✅ Verified |
+| NPMCLI-03 | P1 | Implement | ✅ Verified |
+| NPMCLI-04 | P1 | Implement | ✅ Verified (traced by code inspection, no live Aseprite UI run - documented pre-existing constraint) |
+| NPMCLI-05 | P2 | Implement | ✅ Verified |
+| NPMCLI-06 | P2 | Implement | ✅ Verified |
+| NPMCLI-07 | P2 | Implement | ✅ Verified |
+| NPMCLI-08 | P1 | Implement | ✅ Verified |
+| NPMCLI-09 | P1 | Implement | ✅ Verified |
 
 **ID format:** `NPMCLI-[NUMBER]`
 
 **Status values:** Pending → Implementing → Verified
 
 **Coverage:** 9 total, 9 mapped to tasks (see tasks.md), 0 unmapped
+
+**Feature-level validation**: PASS ✅ — see `validation.md` (independent Verifier, 2026-09-20). 9/9 ACs matched spec outcome, discrimination sensor 3/4 mutations killed via the project's manual verification method (1 survives `node --test` by design — no dedicated test exists for `edit.mjs`'s entry guard, already declared in tasks.md's Test Coverage Matrix; recorded as lesson L-004).
 
 ---
 

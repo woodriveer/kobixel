@@ -8,7 +8,7 @@ and follow its Execute flow and Critical Rules.
 ---
 
 **Spec**: `.specs/features/npm-global-install/spec.md`
-**Status**: Approved
+**Status**: Done — Verified PASS (see `validation.md`)
 
 ---
 
