@@ -19,7 +19,7 @@
 // the running process, not just the saved profile).
 //
 // Usage (matches the Aseprite extension's {input}/{output}/{prompt}):
-//   node edit.mjs --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+//   node edit.mjs --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"
 
 import { chromium } from "playwright";
 import { mkdirSync, realpathSync } from "node:fs";
@@ -45,19 +45,55 @@ function optionalArg(name) {
   return process.argv[i + 1];
 }
 
+// The second sentence is a no-op when kobixel.lua's "Frame in a 4x4 grid"
+// option is off (there's no grid in the image, so the "if" doesn't apply)
+// and load-bearing when it's on: it's the piece of prompt text that tells
+// Nano Banana to treat the marked cell as a hard boundary. Kept as one
+// unconditional instruction (rather than a flag threaded through the CLI
+// args) so this file doesn't need to know whether the image it received
+// was actually framed - it just describes what to do in either case.
 export const BASE_PIXEL_ART_INSTRUCTIONS =
   "This is pixel art. Preserve the exact pixel grid: no anti-aliasing, " +
-  "no smoothing, no gradients, no blur.";
+  "no smoothing, no gradients, no blur. If this image has a black grid " +
+  "dividing it into 16 cells (4x4) with content only in the top-left " +
+  "cell, edit ONLY inside that top-left cell, keep the grid lines " +
+  "exactly where they are, and leave the other 15 cells pure white - do " +
+  "not draw anything there, and do not resize, move, or redraw the grid " +
+  "boundaries.";
 
-// Builds the canvas-size sentence from the REAL dimensions of the image
-// actually sent (data.upscale in kobixel.lua changes this per-sprite),
-// instead of a fixed claim that used to say "256x256" regardless of what
-// was really uploaded.
-export function buildPixelArtInstructions({ width, height } = {}) {
-  if (width && height) {
-    return `${BASE_PIXEL_ART_INSTRUCTIONS} Use canvas size as ${width}x${height} pixels.`;
+// Animation mode's counterpart of BASE_PIXEL_ART_INSTRUCTIONS: instead of
+// leaving 15 of the 16 grid cells blank, this tells the model to fill
+// EVERY cell with a different frame of the same animated asset.
+// kobixel.lua's sliceGrid then extracts all 16 in the exact row-major
+// order this text describes (cell 1 = top-left, cell 16 = bottom-right).
+export const BASE_ANIMATION_INSTRUCTIONS =
+  "This is pixel art. Preserve the exact pixel grid: no anti-aliasing, " +
+  "no smoothing, no gradients, no blur. This image has a black grid " +
+  "dividing it into 16 cells (4x4). Draw a sequential animation frame of " +
+  "the same character/asset in EVERY one of the 16 cells, in reading " +
+  "order (left to right, then top to bottom - cell 1 is top-left, cell " +
+  "16 is bottom-right). Do not leave any cell blank. Keep the " +
+  "character's design, proportions, and scale consistent across all 16 " +
+  "frames, changing only the pose/motion between them. Keep the grid " +
+  "lines exactly where they are, and do not resize, move, or redraw the " +
+  "grid boundaries.";
+
+// Builds the full instruction text. `animation` (when non-empty) switches
+// from the single-cell-edit instructions to the fill-all-cells animation
+// instructions and names the requested animation; the canvas-size sentence
+// is built from the REAL dimensions of the image actually sent
+// (data.upscale in kobixel.lua changes this per-sprite), instead of a
+// fixed claim that used to say "256x256" regardless of what was really
+// uploaded.
+export function buildPixelArtInstructions({ width, height, animation } = {}) {
+  let text = animation ? BASE_ANIMATION_INSTRUCTIONS : BASE_PIXEL_ART_INSTRUCTIONS;
+  if (animation) {
+    text = `${text} The animation is: ${animation}.`;
   }
-  return BASE_PIXEL_ART_INSTRUCTIONS;
+  if (width && height) {
+    text = `${text} Use canvas size as ${width}x${height} pixels.`;
+  }
+  return text;
 }
 
 const DEBUG_URL = "http://localhost:9222";
@@ -75,7 +111,8 @@ async function main() {
   const prompt = arg("prompt");
   const width = optionalArg("width");
   const height = optionalArg("height");
-  const PIXEL_ART_INSTRUCTIONS = buildPixelArtInstructions({ width, height });
+  const animation = optionalArg("animation");
+  const PIXEL_ART_INSTRUCTIONS = buildPixelArtInstructions({ width, height, animation });
 
   let browser;
   try {

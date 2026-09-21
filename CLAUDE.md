@@ -58,7 +58,7 @@ Only one generation can run at a time (`activeRun` flag) — the plugin refuses 
 
 Two alternative backends (`tools/gemini_edit.py`, a direct-API script; `tools/gemini-edit.ps1`, a `gemini` CLI + nanobanana wrapper) were removed — both required a paid API key/tier, and the `.ps1` one was already broken (Google discontinued the free `gemini` CLI login). See README.md's "Estado atual" table for the historical rationale; do not resurrect either without addressing the paid-API-key issue first.
 
-Any new backend must implement the same `--in/--out/--prompt` contract dictated by the Lua side's `{input}/{output}/{prompt}` placeholders to drop into the same dialog field, and should accept the optional `--width`/`--height` flags (real dimensions of the sent PNG) the way `edit.mjs` does, so the model gets an accurate canvas-size instruction instead of a guess or a hardcoded value.
+Any new backend must implement the same `--in/--out/--prompt` contract dictated by the Lua side's `{input}/{output}/{prompt}` placeholders to drop into the same dialog field, and should accept the optional `--width`/`--height` flags (real dimensions of the sent PNG) the way `edit.mjs` does, so the model gets an accurate canvas-size instruction instead of a guess or a hardcoded value. It should also accept the optional `--animation` flag (`{animation}` placeholder, empty string when Animation mode is off) the way `edit.mjs` does — a non-empty value means the sent image's 4x4 grid should be filled with 16 sequential animation frames instead of edited only in the top-left cell.
 
 ## Key constraints to keep in mind when editing
 

@@ -10,14 +10,17 @@
 
 local DEFAULTS = {
   prompt      = "",
-  command     = 'kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"',
+  command     = 'kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"',
   source      = "sprite",     -- "sprite" (flattened frame) | "cel"
   target      = "new_layer",  -- "new_layer" | "replace"
   upscale     = 4,            -- upscale factor for what is SENT
+  quadrantFrame = true,       -- frame the sent image in a grid (see gridFrame)
   resample    = "average",    -- "average" | "point"
   snapPalette = true,
   alphaCut    = 128,
   fidelity    = 70,           -- 0-100: proximity factor to the original drawing
+  animationMode = false,      -- generate 16 sequential frames instead of one edit
+  animationDescription = "",  -- e.g. "walk", "idle", "jump" - sent as --animation
 }
 
 local cfg = {}   -- in-memory config (mirrors plugin.preferences)
@@ -309,6 +312,98 @@ local function upscaleNearest(img, factor)
   return out
 end
 
+-- Frames the (already upscaled) sprite inside the top-left cell of a
+-- cols x rows grid, separated from the other (blank) cells by a black
+-- gutter. Text-only "use canvas size WxH" instructions aren't reliably
+-- followed by Nano Banana - it tends to render at its own native
+-- resolution regardless (e.g. 2048x2048 even when a much smaller size was
+-- requested), and at that resolution it adds smooth/painterly detail no
+-- downscale filter can turn back into flat pixel-art blocks. A visual
+-- boundary drawn INTO the image is respected far more reliably (validated
+-- manually: the model kept its output pinned to the same total canvas
+-- size, left the other cells untouched, and rendered flatter color blocks
+-- within the marked cell). The gutter (not just a hairline on the
+-- midpoint) guarantees the cell content is never itself partially
+-- overwritten by the dividing lines.
+-- See tools/kobixel-gemini-web/edit.mjs's BASE_PIXEL_ART_INSTRUCTIONS for
+-- the matching prompt text that tells the model about this layout (and
+-- BASE_ANIMATION_INSTRUCTIONS for the animation-mode variant, which uses
+-- every cell instead of just the top-left one - see sliceGrid below).
+local function gridFrame(cell, cols, rows)
+  local thickness = math.max(2, math.floor(math.min(cell.width, cell.height) / 100))
+  local w = cell.width * cols + thickness * (cols - 1)
+  local h = cell.height * rows + thickness * (rows - 1)
+
+  local out = Image(ImageSpec{
+    width = w, height = h, colorMode = ColorMode.RGB, transparentColor = 0 })
+  local white = pc.rgba(255, 255, 255, 255)
+  local black = pc.rgba(0, 0, 0, 255)
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      out:putPixel(x, y, white)
+    end
+  end
+  for col = 1, cols - 1 do
+    local x0 = col * cell.width + (col - 1) * thickness
+    for y = 0, h - 1 do
+      for x = x0, x0 + thickness - 1 do out:putPixel(x, y, black) end
+    end
+  end
+  for row = 1, rows - 1 do
+    local y0 = row * cell.height + (row - 1) * thickness
+    for x = 0, w - 1 do
+      for y = y0, y0 + thickness - 1 do out:putPixel(x, y, black) end
+    end
+  end
+
+  out:drawImage(cell, Point(0, 0))
+  return out
+end
+
+-- Reverses gridFrame: crops back to just the top-left cell (clamped to
+-- whatever size actually came back, in case the model didn't keep the
+-- exact canvas size). Used for single-edit mode (one cell in use).
+local function cropTopLeft(img, w, h)
+  w = math.min(w, img.width)
+  h = math.min(h, img.height)
+  local out = Image(ImageSpec{
+    width = w, height = h, colorMode = ColorMode.RGB, transparentColor = 0 })
+  out:drawImage(img, Point(0, 0))
+  return out
+end
+
+-- Reverses gridFrame for animation mode: extracts all cols*rows cells from
+-- the response in row-major order (left-to-right, top-to-bottom - cell 1 =
+-- top-left, cell 2 = next one right, etc). cellWidth/cellHeight/
+-- canvasWidth/canvasHeight are the SENT sizes (the per-cell image and the
+-- full gridFrame canvas, respectively); img is what actually came back.
+-- Crops each cell as the same RELATIVE fraction of whatever size actually
+-- came back that cropTopLeft already uses for the single-cell case - the
+-- model doesn't always return the exact canvas size it was sent (see the
+-- 0.3.1 fix), and that risk applies per-cell here too.
+local function sliceGrid(img, cellWidth, cellHeight, canvasWidth, canvasHeight, cols, rows)
+  local thickness = math.max(2, math.floor(math.min(cellWidth, cellHeight) / 100))
+  local scaleX = img.width / canvasWidth
+  local scaleY = img.height / canvasHeight
+  local cropW = math.floor(cellWidth * scaleX + 0.5)
+  local cropH = math.floor(cellHeight * scaleY + 0.5)
+  local stepX = math.floor((cellWidth + thickness) * scaleX + 0.5)
+  local stepY = math.floor((cellHeight + thickness) * scaleY + 0.5)
+
+  local cells = {}
+  for row = 0, rows - 1 do
+    for col = 0, cols - 1 do
+      local x = math.min(math.max(img.width - cropW, 0), col * stepX)
+      local y = math.min(math.max(img.height - cropH, 0), row * stepY)
+      local out = Image(ImageSpec{
+        width = cropW, height = cropH, colorMode = ColorMode.RGB, transparentColor = 0 })
+      out:drawImage(img, Point(-x, -y))
+      cells[#cells + 1] = out
+    end
+  end
+  return cells
+end
+
 local function resampleTo(src, w, h, mode)
   if src.width == w and src.height == h then return src end
 
@@ -405,17 +500,77 @@ local activeRun = false -- simple lock: only one generation at a time in this se
 
 -- brings the generated PNG back into the sprite: resamples, converts to
 -- the sprite's color mode, and inserts it inside a transaction (Ctrl+Z
--- undoes everything at once).
+-- undoes everything at once). In animation mode, writes all 16 grid cells
+-- as 16 sprite frames plus a Tag instead of just one cel.
 --
 -- frameNumber/targetLayer are captured from WHEN THE USER CLICKED
 -- "Generate", not read from app.frame/app.layer here: the generation runs
 -- in the background for 30-90s+, and if the user switches tabs/frames in
 -- the meantime, app.frame/app.layer would then point somewhere else — the
 -- result would land in the wrong place with no error to warn about it.
-local function finalizeResult(data, sprite, rect, outPath, frameNumber, targetLayer)
+local function finalizeResult(data, sprite, rect, outPath, frameNumber, targetLayer, cellWidth, cellHeight, canvasWidth, canvasHeight)
   local result = loadPNG(outPath)
   if not result then
     return app.alert("Could not read the generated PNG:\n" .. outPath)
+  end
+
+  if data.animationMode then
+    local cells = sliceGrid(result, cellWidth, cellHeight, canvasWidth, canvasHeight, 4, 4)
+
+    app.transaction("Kobixel", function()
+      local layer = targetLayer
+      if data.target == "new_layer" then
+        layer = sprite:newLayer()
+        layer.name = "Kobixel: " .. data.prompt:sub(1, 24)
+      elseif not targetLayer or not targetLayer.isImage then
+        return app.alert("The current layer doesn't accept pixels. Use 'New layer'.")
+      end
+
+      -- Grow the timeline by APPENDING at the true end only - never insert
+      -- at a mid-timeline position. Aseprite's own API docs don't specify
+      -- whether newEmptyFrame(n) would insert-and-shift existing frames
+      -- when n falls inside the current range, so this only ever calls it
+      -- with n = current count + 1, which is unambiguous under any
+      -- interpretation.
+      while #sprite.frames < frameNumber + 15 do
+        sprite:newEmptyFrame(#sprite.frames + 1)
+      end
+
+      for i = 0, 15 do
+        local shrunk = resampleTo(cells[i + 1], rect.width, rect.height, data.resample)
+        local final = toSpriteColorMode(shrunk, sprite, data.snapPalette, data.alphaCut)
+        local targetFrame = frameNumber + i
+        local cel = layer:cel(targetFrame)
+        if cel then
+          cel.image = final
+          cel.position = Point(rect.x, rect.y)
+        else
+          sprite:newCel(layer, targetFrame, final, Point(rect.x, rect.y))
+        end
+      end
+
+      local tag = sprite:newTag(frameNumber, frameNumber + 15)
+      tag.name = (data.animationDescription ~= "" and data.animationDescription
+        or "Kobixel animation"):sub(1, 24)
+    end)
+
+    app.refresh()
+    return
+  end
+
+  if data.quadrantFrame then
+    -- The model doesn't always return the exact canvas size it was sent -
+    -- it may normalize the whole image to one of its own native
+    -- resolutions instead of the requested one. Cropping an ABSOLUTE pixel
+    -- size (the cell size we actually sent) then grabs only a fraction of
+    -- the real cell whenever that happens - e.g. if it doubled the canvas,
+    -- an unscaled crop only reaches a quarter of the way across the cell,
+    -- which can land on a small sub-detail (an eye) instead of the whole
+    -- subject. Cropping the SAME RELATIVE fraction of the response instead
+    -- keeps this correct regardless of what size actually came back.
+    local cropW = math.floor(result.width * (cellWidth / canvasWidth) + 0.5)
+    local cropH = math.floor(result.height * (cellHeight / canvasHeight) + 0.5)
+    result = cropTopLeft(result, cropW, cropH)
   end
 
   local shrunk = resampleTo(result, rect.width, rect.height, data.resample)
@@ -451,6 +606,21 @@ local function run(data)
   if data.prompt == "" then
     return app.alert("Write a prompt.")
   end
+  -- Animation mode is silently useless if the command template can't
+  -- receive it: kobixel.lua only ever fills {animation} into data.command
+  -- (see the fillTemplate call below), so an "External command" field
+  -- saved before this flag existed - or hand-edited without it - drops it
+  -- entirely, and the backend falls back to its single-image-edit prompt
+  -- with no error. Catch that here instead of burning a 30-90s generation
+  -- on the wrong prompt.
+  if data.animationMode and not data.command:find("{animation}", 1, true) then
+    return app.alert(
+      "Animation mode is on, but the External command field doesn't have " ..
+      "an {animation} placeholder, so the animation description can't be " ..
+      "sent.\n\nAdd --animation \"{animation}\" to the External command " ..
+      "field (see the default command for reference)."
+    )
+  end
   if activeRun then
     return app.alert("A Kobixel generation is already running. Wait for it to finish before requesting another.")
   end
@@ -459,7 +629,11 @@ local function run(data)
   -- 30-90s+, and if the user switches tabs/frames in the meantime,
   -- app.frame/app.layer would point somewhere else by the time it
   -- finishes. See the comment in finalizeResult.
-  local frameNumber = app.frame
+  -- app.frame is a Frame OBJECT, not a plain integer (its .frameNumber is)
+  -- - animation mode does arithmetic on this (frameNumber + i), which fails
+  -- with "attempt to perform arithmetic on a FrameObj value" on the object
+  -- itself, so this always unwraps to the integer up front.
+  local frameNumber = app.frame.frameNumber
   local targetLayer = app.layer
 
   -- 1. work area: the selection, if any; otherwise the whole sprite/cel
@@ -495,6 +669,7 @@ local function run(data)
   -- 2. prepare the input PNG (RGBA + nearest-neighbor upscale)
   local rgba = toRGBA(baseImage, sprite)
   local sent = upscaleNearest(rgba, data.upscale)
+  local toSend = data.quadrantFrame and gridFrame(sent, 4, 4) or sent
 
   local dir = workDir()
   runCounter = runCounter + 1
@@ -504,7 +679,7 @@ local function run(data)
   local logPath  = app.fs.joinPath(dir, "kobixel-" .. stamp .. ".log")
   local donePath = app.fs.joinPath(dir, "done-" .. stamp .. ".txt")
 
-  if not savePNG(sent, inPath) then
+  if not savePNG(toSend, inPath) then
     return app.alert("Failed to save the input PNG to:\n" .. inPath)
   end
 
@@ -517,8 +692,9 @@ local function run(data)
     input  = inPath,
     output = outPath,
     prompt = escapeForShell(effectivePrompt),
-    width  = tostring(sent.width),
-    height = tostring(sent.height),
+    width  = tostring(toSend.width),
+    height = tostring(toSend.height),
+    animation = data.animationMode and escapeForShell(data.animationDescription) or "",
   })
 
   local ok, err = runCommandAsync(cmd, logPath, donePath, stamp)
@@ -563,7 +739,7 @@ local function run(data)
     -- pcall: if the sprite was closed or became invalid during the wait
     -- (30-90s+ in the background), this turns into an alert instead of a
     -- silent error only visible in the Developer Console.
-    local finalizeOk, finalizeErr = pcall(finalizeResult, data, sprite, rect, outPath, frameNumber, targetLayer)
+    local finalizeOk, finalizeErr = pcall(finalizeResult, data, sprite, rect, outPath, frameNumber, targetLayer, sent.width, sent.height, toSend.width, toSend.height)
     if not finalizeOk then
       app.alert("Error inserting the result into the sprite:\n" .. tostring(finalizeErr) ..
         "\n\nThe generated PNG is still at:\n" .. outPath)
@@ -631,6 +807,29 @@ local function showDialog(plugin)
   dlg:slider{ id = "upscale", label = "Upscale before sending:",
               min = 1, max = 32, value = saved.upscale }
 
+  dlg:check{ id = "quadrantFrame", text = "Frame in a 4x4 grid before sending (less quality loss)",
+             selected = saved.animationMode or saved.quadrantFrame,
+             enabled = not saved.animationMode }
+  dlg:label{ label = "", text = "Confines the image model's edit to a marked grid cell instead of its full native canvas - needs a backend that understands the marker (kobixel-gemini-web does)." }
+
+  dlg:check{ id = "animationMode", text = "Generate 16-frame animation (fills all 16 grid cells)",
+             selected = saved.animationMode,
+             onclick = function()
+               local on = dlg.data.animationMode
+               -- Dialog:modify's officially documented keys are only
+               -- id/visible/enabled/text (api.aseprite.org) - "selected" is
+               -- NOT among them, so this line is best-effort: it locks the
+               -- checkbox visually WHEN Aseprite's binding happens to honor
+               -- it, but correctness never depends on it - the `data.target`
+               -- assembly below ORs animationMode into quadrantFrame
+               -- regardless of what this checkbox visually shows.
+               dlg:modify{ id = "quadrantFrame", selected = true, enabled = not on }
+               dlg:modify{ id = "animationDescription", enabled = on }
+             end }
+  dlg:entry{ id = "animationDescription", label = "Animation description:",
+             text = saved.animationDescription, enabled = saved.animationMode }
+  dlg:label{ label = "", text = "e.g. \"walk\", \"idle\", \"jump\" - one frame per grid cell, in reading order. Forces the grid above on (animation needs it)." }
+
   dlg:separator{ text = "Back to the sprite" }
 
   dlg:combobox{
@@ -650,7 +849,7 @@ local function showDialog(plugin)
               min = 1, max = 255, value = saved.alphaCut }
 
   dlg:separator{ text = "External command" }
-  dlg:label{ label = "", text = "Placeholders: {input} {output} {prompt} {width} {height}" }
+  dlg:label{ label = "", text = "Placeholders: {input} {output} {prompt} {width} {height} {animation}" }
   dlg:entry{ id = "command", label = "", text = saved.command }
 
   dlg:button{ id = "ok", text = "Generate", focus = false }
@@ -669,8 +868,11 @@ local function showDialog(plugin)
     target      = (d.target == "Replace current cel") and "replace" or "new_layer",
     resample    = (d.resample == "Point (sharp)") and "point" or "average",
     upscale     = d.upscale,
+    quadrantFrame = d.quadrantFrame or d.animationMode,
     snapPalette = d.snapPalette,
     alphaCut    = d.alphaCut,
+    animationMode = d.animationMode,
+    animationDescription = d.animationDescription,
   }
 
   -- persist

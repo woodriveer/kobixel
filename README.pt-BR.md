@@ -169,23 +169,28 @@ shell. O template é editável no diálogo e aceita estes placeholders:
 | `{output}` | caminho onde o CLI **deve** gravar o resultado |
 | `{prompt}` | seu prompt, já escapado |
 | `{width}` / `{height}` | dimensões do PNG enviado |
+| `{animation}` | descrição da animação, quando "Generate 16-frame animation" está ligado (vazio caso contrário) |
 
 Padrão (depois de seguir "Instale o CLI primeiro" acima):
 
 ```sh
-kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"
 ```
 
 Se preferir não instalar o CLI globalmente (ex: enquanto edita o
 `edit.mjs` ativamente), aponte o campo direto pro script:
 
 ```sh
-node "C:\caminho\para\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+node "C:\caminho\para\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"
 ```
 
-`--width`/`--height` são opcionais nas duas formas: o `edit.mjs` os usa
-para dizer ao Gemini o tamanho real do PNG enviado (em vez de um valor
-fixo) e continua funcionando normalmente se você omitir os dois.
+`--width`/`--height`/`--animation` são opcionais nas três formas: o
+`edit.mjs` usa `--width`/`--height` para dizer ao Gemini o tamanho real do
+PNG enviado (em vez de um valor fixo), e um `--animation` não vazio para
+trocar de uma edição de célula única para preencher as 16 células da grade
+com frames sequenciais dessa animação. Continua funcionando normalmente se
+você omitir os três. Qualquer backend customizado que queira suportar o
+modo de animação deve implementar essa mesma flag `--animation`.
 
 Antes de colar um comando no campo do plugin, **teste ele direto no
 terminal** com um PNG qualquer — assim os erros aparecem no terminal em vez
@@ -242,6 +247,30 @@ principalmente perto dos extremos.
 - **Ampliar antes de enviar**: modelos de imagem trabalham em ~1024px. Mandar um
   PNG 32×32 cru dá resultado ruim. O padrão (8×) manda 256×256 com nearest
   neighbor, preservando a grade de pixels.
+- **Enquadrar em uma grade 4x4 antes de enviar** (ligado por padrão): confina a
+  edição a uma célula marcada de uma grade de 16 células (4x4), em vez de
+  deixar o modelo usar o canvas nativo dele inteiro. O Gemini/Nano Banana
+  majoritariamente ignora um pedido só em texto de "use este tamanho de
+  canvas" e renderiza no tamanho nativo dele (muitas vezes 2048×2048)
+  independente do que foi realmente enviado — e nesse tamanho ele adiciona
+  detalhe suave/pictórico que nenhum downscale consegue transformar de volta
+  em blocos chapados de pixel art. Uma fronteira visual desenhada dentro da
+  própria imagem é respeitada de forma bem mais confiável. Desligue só se
+  você estiver usando um comando externo customizado cujo backend não
+  entende esse marcador (ver `BASE_PIXEL_ART_INSTRUCTIONS` em `edit.mjs`) —
+  um backend incompatível acabaria tendo uma fração da própria saída cortada
+  silenciosamente.
+- **Gerar animação de 16 frames**: preenche as 16 células da grade com
+  frames sequenciais do mesmo asset (idle, walk, run, jump, ...) em vez de
+  uma única edição, guiado por um campo opcional "Animation description".
+  Força a grade 4x4 a ficar ligada (a animação não funciona sem ela) e, ao
+  terminar, coloca os 16 frames na timeline do sprite — começando no frame
+  que estava ativo quando você clicou em Gerar — dentro de uma nova Tag
+  nomeada com a descrição. Precisa de um backend que implemente a flag
+  opcional `--animation` (ver `BASE_ANIMATION_INSTRUCTIONS` em `edit.mjs`);
+  um "Ampliar antes de enviar" muito alto combinado com esse modo manda uma
+  imagem bem maior (16x a área de pixels de uma única célula) — reduza o
+  slider de ampliação se a geração ficar lenta ou de baixa qualidade.
 - **Travar cores na paleta**: essencial para sprites indexados e para manter a
   paleta original em sprites RGB.
 - **Reduzir com Média** costuma ganhar de Ponto quando o modelo devolve arte com

@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Animation mode failed silently and generated a single-image edit instead
+  of an animation whenever the "External command" field's saved value
+  predated the `{animation}` placeholder (e.g. saved before 0.4.0, or
+  hand-edited without it) - the description was simply dropped with no
+  error. `run()` now checks for `{animation}` in the command template
+  up front and refuses to start with a clear alert instead of burning a
+  30-90s generation on the wrong prompt.
+
+## [0.4.1] - 2026-09-21
+
+### Fixed
+
+- Animation mode crashed with "attempt to perform arithmetic on a FrameObj
+  value": the frame captured at click time (`app.frame`) is a Frame
+  OBJECT, not a plain integer (`app.frame.frameNumber` is) - the
+  single-edit path never did arithmetic on it so this went unnoticed, but
+  animation mode's `frameNumber + i` broke immediately. Discovered testing
+  inside Aseprite right after 0.4.0.
+
+## [0.4.0] - 2026-09-21
+
+### Added
+
+- "Generate 16-frame animation" option: fills all 16 cells of the grid with
+  sequential frames of the same asset (idle, walk, run, jump, ...) instead
+  of a single edit, driven by an optional "Animation description" field.
+  Forces grid framing on, writes the 16 resulting frames onto the sprite's
+  timeline (starting at the frame active when Generate was clicked,
+  appending new frames at the end of the timeline if needed), and creates
+  an Aseprite Tag spanning them, named after the description.
+- `edit.mjs` (and the external-command contract for any custom backend)
+  gained an optional `--animation "<description>"` flag/`{animation}`
+  placeholder, following the same pattern as `--width`/`--height`, used to
+  switch from the single-cell-edit prompt to a fill-all-16-cells animation
+  prompt.
+
+### Changed
+
+- "Frame in a quadrant before sending" is now "Frame in a 4x4 grid before
+  sending": the grid used to confine the model's edit went from 2x2 (4
+  cells) to 4x4 (16 cells). Single-edit behavior is unchanged (content only
+  in the top-left cell, same relative-fraction crop-back) - only the grid
+  size and the cell-count wording in the prompt text changed.
+
+## [0.3.1] - 2026-09-20
+
+### Fixed
+
+- "Frame in a quadrant" cropped the response using the ABSOLUTE cell size
+  that was sent, but Nano Banana doesn't always return the exact canvas
+  size it received — it can normalize the whole image to one of its own
+  native resolutions instead. When that happened, the fixed-size crop only
+  reached a fraction of the way across the real cell, landing on a small
+  sub-detail (e.g. just an eye) instead of the whole subject, discovered
+  testing inside Aseprite right after 0.3.0. Now crops the same RELATIVE
+  fraction of whatever size actually came back, which stays correct
+  regardless of how the model rescaled the response.
+
+## [0.3.0] - 2026-09-20
+
+### Added
+
+- "Frame in a quadrant before sending" option (on by default). Nano Banana
+  mostly ignores the existing text-only "use canvas size WxH" instruction
+  and renders at its own native resolution (often 2048x2048) regardless of
+  what was actually uploaded — and at that resolution it renders
+  smooth/painterly detail that no downscale filter turns back into flat
+  pixel-art blocks. This instead marks the sent image with a black-gutter
+  2x2 grid, places the sprite in the top-left cell, and tells the model
+  (`edit.mjs`'s `BASE_PIXEL_ART_INSTRUCTIONS`) to edit only inside that
+  cell and leave the rest blank; `kobixel.lua` crops that same cell back
+  out of the response before the existing downscale step, so the effective
+  downscale ratio drops (e.g. 8x instead of 32x for a 64x64 sprite) instead
+  of relying on whatever size the model decided to return. Validated
+  manually: the model kept the output pinned to the same canvas size, left
+  the other three cells untouched, and rendered flatter color blocks.
+  Existing custom "External command" backends that don't understand the
+  marker should turn the checkbox off (their output would otherwise get a
+  quarter of it silently cropped away). One side effect when it's on: a
+  sprite's transparent regions are composited onto opaque white before
+  sending (previously the alpha channel was sent as-is) — harmless in
+  practice since Nano Banana never returns real alpha either way (see
+  "Known limitations").
+
 ## [0.2.5] - 2026-09-20
 
 ### Changed
@@ -197,7 +283,9 @@ extension is shared with the wider community.
   external backend directory (`tools/gemini-web-edit` →
   `tools/repixel-gemini-web`).
 
-[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/woodriveer/kobixel/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/woodriveer/kobixel/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/woodriveer/kobixel/compare/v0.2.5...v0.3.0
 [0.2.2]: https://github.com/woodriveer/kobixel/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/woodriveer/kobixel/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/woodriveer/kobixel/compare/v0.1.1...v0.2.0

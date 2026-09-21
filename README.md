@@ -172,23 +172,28 @@ The template is editable in the dialog and accepts these placeholders:
 | `{output}` | path where the CLI **must** write the result |
 | `{prompt}` | your prompt, already escaped |
 | `{width}` / `{height}` | dimensions of the sent PNG |
+| `{animation}` | animation description, when "Generate 16-frame animation" is on (empty otherwise) |
 
 Default (after following "Install the CLI first" above):
 
 ```sh
-kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+kobixel-gemini-web --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"
 ```
 
 If you'd rather not install the CLI globally (e.g. while actively editing
 `edit.mjs`), point the field at the script directly instead:
 
 ```sh
-node "C:\path\to\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}"
+node "C:\path\to\tools\kobixel-gemini-web\edit.mjs" --in "{input}" --out "{output}" --prompt "{prompt}" --width "{width}" --height "{height}" --animation "{animation}"
 ```
 
-`--width`/`--height` are optional in both forms: `edit.mjs` uses them to
-tell Gemini the real size of the PNG sent (instead of a fixed value), and
-it keeps working normally if you omit both.
+`--width`/`--height`/`--animation` are optional in both forms: `edit.mjs`
+uses `--width`/`--height` to tell Gemini the real size of the PNG sent
+(instead of a fixed value), and a non-empty `--animation` to switch from a
+single-cell edit to filling all 16 grid cells with sequential frames of
+that animation. It keeps working normally if you omit all three. Any
+custom backend that wants to support the animation mode should implement
+this same `--animation` flag.
 
 Before pasting a command into the plugin's field, **test it directly in a
 terminal** with any PNG — that way errors show up in the terminal instead
@@ -245,6 +250,28 @@ especially near the extremes.
 - **Upscale before sending**: image models work at ~1024px. Sending a raw
   32×32 PNG gives a bad result. The default (8×) sends 256×256 with nearest
   neighbor, preserving the pixel grid.
+- **Frame in a 4x4 grid before sending** (on by default): confines the edit
+  to a marked cell of a 16-cell (4x4) grid instead of letting the model use
+  its full native canvas. Gemini/Nano Banana mostly ignores a text-only
+  "use this canvas size" request and renders at its own resolution (often
+  2048×2048) regardless of what was actually sent — and at that size it
+  adds smooth/painterly detail that no downscale can turn back into flat
+  pixel-art blocks. A visual boundary drawn into the image itself is
+  respected far more reliably. Turn it off only if you're using a custom
+  External command whose backend doesn't understand the marker (see
+  `BASE_PIXEL_ART_INSTRUCTIONS` in `edit.mjs`) — a mismatched backend would
+  otherwise get a fraction of its output silently cropped away.
+- **Generate 16-frame animation**: fills all 16 grid cells with sequential
+  frames of the same asset (idle, walk, run, jump, ...) instead of just one
+  edit, driven by an optional "Animation description" field. Forces the 4x4
+  grid on (animation can't work without it) and, on success, drops the 16
+  frames onto the sprite's timeline — starting at whichever frame was active
+  when you clicked Generate — inside a new Tag named after the description.
+  Needs a backend that implements the optional `--animation` flag (see
+  `BASE_ANIMATION_INSTRUCTIONS` in `edit.mjs`); a very high "Upscale before
+  sending" combined with this mode sends a much larger image (16x the pixel
+  area of a single cell) — lower the upscale slider if generation gets slow
+  or low-quality.
 - **Lock colors to the palette**: essential for indexed sprites and to keep
   the original palette on RGB sprites.
 - **Downscale with Average** tends to beat Point when the model returns art
